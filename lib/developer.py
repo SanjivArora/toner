@@ -1,0 +1,142 @@
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
+import datetime as dt
+
+
+# Find readings for serials where the latest reading is no older than two months
+# If field is specified, filter out rows where the value is nan
+def hasRecentReadings(df, field=None, weeks=4*2):
+    if field is None:
+        field = 'RetrievedDateTime'
+    x = df[['Serial', 'RetrievedDate', field]].dropna()
+    recent_idx = x.RetrievedDate > dt.datetime.today().date() - dt.timedelta(weeks=weeks)
+    sers = x.loc[recent_idx, 'Serial'].unique()
+    filtered = df.loc[df.Serial.isin(sers)]
+    return filtered
+
+# Filter for latest dev unit with recent readings
+def currentDevUnits(df, color):
+    f = f"Developer.Replaced.{color}"
+    df = hasRecentReadings(df, f'Toner.Usage.Ratio.{color}')
+    gp = df[['Serial', f]].groupby(['Serial'], group_keys=False)
+    idxs = gp.apply(lambda x: x[f]==np.max(x[f]))
+    filtered = df.loc[idxs]
+    return filtered
+
+# Find serials where readings for the current dev unit have:
+# -The latest specific toner usage >3x median
+# -At least two elevated readings (>2x median)
+def currentBadDevs(df, color, cur=None):
+    if cur is None:
+        cur = currentDevUnits(df, color)
+    sers = cur.Serial.unique()
+    res = []
+    for ser in sers:
+        vals = cur.loc[cur.Serial==ser, f'Toner.Usage.Ratio.{color}'].dropna()
+        latest_high = (vals.head(1) > 3).sum() == 1
+        two_elevated = (vals > 2).sum() >= 2
+        if latest_high and two_elevated:
+            res.append(ser)
+    return(res)
+
+def plotCurrentBadDevs(df, color, model=None, log=True):
+    if model:
+        df = df.loc[df.Model==model]
+    cur = currentDevUnits(df, color)
+    sers = currentBadDevs(df, color, cur)
+    traces = []
+    for ser in sers:
+        data = cur.loc[cur.Serial==ser,['RetrievedDate', f'Toner.Usage.Ratio.{color}']].dropna()
+        ydata = data [f'Toner.Usage.Ratio.{color}']
+        if log:
+            ydata = np.log(ydata)
+        traces.append(go.Scatter(x=data['RetrievedDate'], y=ydata, name=ser))
+    if traces:
+        title = f'Toner Efficiency Outliers - {model or ""} {color}'
+        ylabel = 'Toner Usage vs Normal'
+        if log:
+            ylabel += " (log)"
+        layout = go.Layout(
+            title=title,
+            xaxis=dict(
+                title='Date'
+            ),
+            yaxis=dict(
+                title=ylabel
+            ),
+        )
+        fig = go.Figure(data=traces, layout=layout)
+        fig.layout.update(showlegend=True)
+        iplot(fig)
+        
+def plotDevLifeCycle(df, color, model=None, log=True):
+    if model:
+        df = df.loc[df.Model==model]
+    cur = df
+    #sers = currentBadDevs(df, color, df)
+    #sers = df.Serial.unique()
+    
+    # Find serials with dev replacements
+    f = f"Developer.Replaced.{color}"
+    df = hasRecentReadings(df, f'Toner.Usage.Ratio.{color}')
+    gp = df[['Serial', f]].groupby(['Serial'], group_keys=False)
+    hits = gp.apply(lambda x: x[f].unique().size > 1)
+    sers = hits[hits].reset_index().Serial
+    
+    traces = []
+    for ser in sers:
+        data = cur.loc[cur.Serial==ser,['RetrievedDate', f'Developer.Rotation.{color}', f'Toner.Usage.Ratio.{color}']].dropna()
+        ydata = data [f'Toner.Usage.Ratio.{color}']
+        if log:
+            ydata = np.log(ydata)
+        traces.append(go.Scatter(x=data[f'Developer.Rotation.{color}'], y=ydata, name=ser))
+    if traces:
+        title = f'Def Lifecycle - {model or ""} {color}'
+        ylabel = 'Toner Usage vs Normal'
+        if log:
+            ylabel += " (log)"
+        layout = go.Layout(
+            title=title,
+            xaxis=dict(
+                title='Dev '
+            ),
+            yaxis=dict(
+                title=ylabel
+            ),
+        )
+        fig = go.Figure(data=traces, layout=layout)
+        fig.layout.update(showlegend=True)
+        iplot(fig)
+
+
+
+#def plotRates(summary):
+#    data = summary[replacement_rates]
+#    for i in range(data.shape[1]):
+#        plt.xlim((0,0.05))
+#        sns.distplot(data.iloc[:,i].where(lambda x: x>=0).dropna(), color=color_display[i], bins=50)
+#        plt.show()
+
+#plot_cols = ['K', 'Y', 'M', "C"]
+#plot_models = res.Model.unique()
+#for m in sorted(plot_models):
+#    for c in plot_cols:
+#        plotCurrentBadDevs(selectTonerStats(res), c, m)
+#
+#
+#for c in plot_cols:
+#    sers = currentBadDevs(res, c)
+#    print(f"Outliers for {c}:")
+#    for ser in sorted(sers):
+#        print(ser)
+#    print()
+#
+#
+#plot_cols = ['K', 'Y', 'M', "C"]
+#plot_models = res.Model.unique()
+#for m in sorted(plot_models):
+#    for c in plot_cols:
+#        plotDevLifeCycle(selectTonerStats(res), c, m)
+
