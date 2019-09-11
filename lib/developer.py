@@ -3,6 +3,9 @@ import seaborn as sns
 import numpy as np
 import pandas as pd
 import datetime as dt
+import plotly
+import plotly.graph_objs as go
+from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot
 
 
 # Find readings for serials where the latest reading is no older than two months
@@ -39,7 +42,7 @@ def currentBadDevs(df, color, cur=None):
         two_elevated = (vals > 2).sum() >= 2
         if latest_high and two_elevated:
             res.append(ser)
-    return(res)
+    return res
 
 def plotCurrentBadDevs(df, color, model=None, log=True):
     if model:
@@ -70,6 +73,10 @@ def plotCurrentBadDevs(df, color, model=None, log=True):
         fig = go.Figure(data=traces, layout=layout)
         fig.layout.update(showlegend=True)
         iplot(fig)
+        return True
+    else:
+        print("No current bad dev units")
+        return False
         
 def plotDevLifeCycle(df, color, model=None, log=True):
     if model:

@@ -1,11 +1,11 @@
-from names import *
+from .names import *
 
 def calcDelta(x, field):
     #x = x.fillna(0)
     x=x[field]
     x1 = x.shift(-1)
     delta = x-x1
-    return(delta)
+    return delta
 
 def addDeltas(df, names):
     by_machine=df.groupby('Serial', group_keys=False)
@@ -41,7 +41,7 @@ def addTonerPages(df, color='K'):
     res = by_machine.apply(inner)
     #df[f'Pages.Toner.{color}'] = res['res'].tolist()
     df[f'Pages.Total.Toner.{color}'] = res
-    return(res)
+    return res
 
 # Project number of pages per bottle using minimum nonzero toner% reading and calculate ratio with actual number of pages
 def projectPages(df, color="K", threshold=30):
@@ -62,7 +62,7 @@ def projectPages(df, color="K", threshold=30):
             f'Projected.Pages.{color}': projection,
             f'Projected.Pages.Ratio.{color}': ratio,
         }, index=[x.head(1).index])
-        return(res)
+        return res
     by_toner = df.groupby(f'TonerIndex.{color}', group_keys=False)
     res = by_toner.apply(inner).reset_index()
     fields = [f'Projected.Pages.{color}', f'Projected.Pages.Ratio.{color}']
@@ -72,10 +72,11 @@ def projectPages(df, color="K", threshold=30):
 def projectCoverage(df, color="K", min_range=50):
     # Estimate coverage at start and end of the bottle using minimum and maximum nonzero toner% readings
     # TODO: Also calculate ratio of prospectively estimated end of bottle coverage to restrospectively estimated start of bottle coverare for next bottle
-    # The prospective estimation measures the copier's estimate of the coverage on reaching 0% remaining toner, htre retrospective estimate is for actual coverage on replacement
+    # The prospective estimation measures the copier's estimate of the coverage on reaching 0% notional remaining toner, the retrospective estimate is for actual coverage on replacement (which may be significantly after reaching a notional 0% reading)
     #
     # Coverage.Start.<color> is the cumulative coverage at the start of the bottle
     # Projected.Coverage.<color> is the projected coverage for this toner bottle (i.e. not cumulative)
+    # Cov.Per.Toner.<color> is the measured coverage per toner reading percentage point from the highest to lowest nonzero toner readings for this bottle
     def inner(x):
         min_idx = x[f'Toner.{color}'].where(x[f'Toner.{color}'] > 0).idxmin()
         max_idx = x[f'Toner.{color}'].where(x[f'Toner.{color}'] > 0).idxmax()
@@ -83,6 +84,7 @@ def projectCoverage(df, color="K", min_range=50):
         if (not type(min_idx)==str) or (not type(max_idx)==str):
             cov_start = np.nan
             cov_projected = np.nan
+            cov_per_toner = np.nan
         else:
             # Min and max refer to toner level
             toner_min = x.loc[min_idx, f'Toner.{color}']
@@ -97,6 +99,7 @@ def projectCoverage(df, color="K", min_range=50):
             if toner_delta < min_range or cov_delta <= 0:
                 cov_start = np.nan
                 cov_projected = np.nan
+                cov_per_toner = np.nan
             else:
                 cov_per_toner = cov_delta / toner_delta
                 cov_start = cov_max - cov_per_toner * (100-toner_max)
@@ -105,11 +108,12 @@ def projectCoverage(df, color="K", min_range=50):
         res = pd.DataFrame({
             f'Coverage.Start.{color}': cov_start,
             f'Projected.Coverage.{color}': cov_projected,
+            f'Coverage.Per.Toner.{color}': cov_per_toner,
         }, index=[x.head(1).index])
-        return(res)
+        return res
     by_toner = df.groupby(f'TonerIndex.{color}', group_keys=False)
     res = by_toner.apply(inner).reset_index()
-    fields = [f'Coverage.Start.{color}', f'Projected.Coverage.{color}']
+    fields = [f'Coverage.Start.{color}', f'Projected.Coverage.{color}', f'Coverage.Per.Toner.{color}']
     for field in fields:
         df.loc[res.idx, field] = res[field].tolist()
         
@@ -119,7 +123,7 @@ def medianCoverage(df, color, model):
     all_valid = df.loc[df.Model==model,['Serial', cov]].dropna()
     medians_for_serial = all_valid.groupby('Serial')[cov].median()
     res = medians_for_serial.dropna().median()
-    return(res)
+    return res
 
 # Specific toner usage for coverage vs median for color and model
 def addTonerRatio(df, color, model):

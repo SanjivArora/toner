@@ -54,7 +54,7 @@ def readFromS3(s3_url):
     p['idx']=idx
     p=p.set_index('idx')
     p.sort_values('RetrievedDateTime', inplace=True, ascending=False)
-    return(p)
+    return p 
 
 # https://stackoverflow.com/questions/30249069/listing-contents-of-a-bucket-with-boto3
 def S3Kwys(bucket_name, prefix='/', delimiter='/', start_after=''):
@@ -90,5 +90,5 @@ def getCacheDetails(region = 'RNZ', bucket=in_bucket_name):
     by_model = itertools.groupby(candidates, lambda x: x[0])
     # Get most recent
     most_recent = [max(list(x[1])) for x in by_model]
-    return(most_recent)
+    return most_recent
 

@@ -1,8 +1,9 @@
 import multiprocessing
 import traceback
 
-from names import *
-from derived import *
+from .names import *
+from .derived import *
+from .cloud import *
 
 
 def addFields(df, name_dict):
@@ -10,7 +11,7 @@ def addFields(df, name_dict):
         df[new] = df[orig]
 
 def processFile(s3_url, show_fields=False):
-    p = read_from_s3(s3_url)
+    p = readFromS3(s3_url)
     names = p.columns.tolist()
     
     toner = findFields(names, '.*Toner.Bottle.%s.Remaining.Toner.(?!previous).*', 'Toner.%s')
@@ -127,7 +128,7 @@ def selectTonerStats(df):
     colnames = df.columns[df.columns.str.contains('^Projected.Pages.*')]
     cols = df[colnames].dropna(how='all')
     res = df.loc[cols.index]
-    return(res)
+    return res
 
 
 models = ['E15', 'E16', 'E17', 'E18', 'E19']
@@ -136,18 +137,18 @@ models = ['E15', 'E16', 'E17', 'E18', 'E19']
 #models = ['G70', 'G71', 'G72', 'G73', 'G74', 'G75']
 
 
-def doProcessing(c, toner_summary=True):
+def doProcessing(path, summary_rows_only=True):
     try:
-        res = process_file(f"s3://{in_bucket_name}/{c[3]}")
-        if toner_summary:
+        res = processFile(f"s3://{in_bucket_name}/{path}")
+        if summary_rows_only:
             res = selectTonerStats(res)
     except:
-        print(f"Exception processing {c[3]}")
+        print(f"Exception processing {path}")
         traceback.print_exc()
         res=None
-    return(res)
+    return res
 
-to_use = [x for x in cs if x[0] in models]
+#to_use = [x for x in cs if x[0] in models]
 #to_use = cs
 
 
@@ -157,11 +158,12 @@ def buildDataset(to_use, num_procs=int(np.ceil(multiprocessing.cpu_count() / 2))
     res_parts = [x for x in res_parts if x is not None]
     print("Combining result parts")
     res = pd.concat(res_parts)
+    return res
 
 
 
-sers = res.loc[res['Projected.Coverage.Y'] < 10000, 'Serial'].unique()
-sers
+#sers = res.loc[res['Projected.Coverage.Y'] < 10000, 'Serial'].unique()
+#sers
 
 #toner = findFields(
 #    names,
