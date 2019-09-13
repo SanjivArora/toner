@@ -14,6 +14,8 @@ def processFile(s3_url, show_fields=False, keep_orig=False):
     p = readFromS3(s3_url)
     orig_fields = p.columns
     names = p.columns.tolist()
+    # Ensure the alphanumerical model IDs are interpreted as strings
+    p.Model = p.Model.astype('str')
     
     toner = findFields(names, '.*Toner.Bottle.%s.Remaining.Toner.(?!previous).*', 'Toner.%s')
     addFields(p, toner)

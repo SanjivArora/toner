@@ -25,30 +25,35 @@ def currentDevUnits(df, color):
     df = hasRecentReadings(df, f'Toner.Usage.Ratio.{color}')
     gp = df[['Serial', f]].groupby(['Serial'], group_keys=False)
     idxs = gp.apply(lambda x: x[f]==np.max(x[f]))
-    filtered = df.loc[idxs]
-    return filtered
+    if len(idxs)==0:
+        return df[0:0]
+    else:
+        filtered = df.loc[idxs]
+        return filtered
 
 # Find serials where readings for the current dev unit have:
-# -The latest specific toner usage >3x median
-# -At least two elevated readings (>2x median)
-def currentBadDevs(df, color, cur=None):
+# -The latest specific toner usage > mult*median
+# -At least two elevated readings > 2*median
+def currentBadDevs(df, color, cur=None, mult=None):
+    if mult is None:
+        mult = 2.5
     if cur is None:
         cur = currentDevUnits(df, color)
     sers = cur.Serial.unique()
     res = []
     for ser in sers:
         vals = cur.loc[cur.Serial==ser, f'Toner.Usage.Ratio.{color}'].dropna()
-        latest_high = (vals.head(1) > 3).sum() == 1
+        latest_high = (vals.head(1) > mult).sum() == 1
         two_elevated = (vals > 2).sum() >= 2
         if latest_high and two_elevated:
             res.append(ser)
     return res
 
-def plotCurrentBadDevs(df, color, model=None, log=True):
+def plotCurrentBadDevs(df, color, model=None, log=True, mult=None):
     if model:
         df = df.loc[df.Model==model]
     cur = currentDevUnits(df, color)
-    sers = currentBadDevs(df, color, cur)
+    sers = currentBadDevs(df, color, cur, mult=mult)
     traces = []
     for ser in sers:
         data = cur.loc[cur.Serial==ser,['RetrievedDate', f'Toner.Usage.Ratio.{color}']].dropna()
