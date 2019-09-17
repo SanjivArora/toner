@@ -37,11 +37,11 @@ def writeFeatherFileToS3(s3_url, df):
     s3 = boto3.resource('s3')
     s3.Object(bucket_name, key_name).put(Body=f)
     
-def writeCSVFileToS3(s3_url, df):
+def writeCSVFileToS3(s3_url, df, index=False):
     assert s3_url.startswith("s3://")
     bucket_name, key_name = s3_url[5:].split("/", 1)
     
-    contents = df.to_csv()
+    contents = df.to_csv(index=index)
     
     s3 = boto3.resource('s3')
     s3.Object(bucket_name, key_name).put(Body=contents)
