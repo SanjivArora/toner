@@ -19,6 +19,12 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     addFields(p, toner)
     toner_names = list(toner.keys())
     
+    toner_end = findFields(names, '.*Toner.Bottle.%s.End.SP7.*', 'Toner.End.Status.%s', allow_missing=allow_missing)
+    addFields(p, toner_end)
+
+    toner_end_date = findFields(names, '.*Toner.Bottle.%s.End.Date.*', 'Toner.End.Date.%s', allow_missing=allow_missing)
+    addFields(p, toner_end_date)
+
     pages = findFields(names, '.*Pages.Current.Toner.%s.(?!previous).*', 'Pages.Toner.%s', allow_missing=allow_missing)
     addFields(p, pages)
     
@@ -51,6 +57,10 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     if show_fields:
         print("Toner level fields:")
         print(toner)
+        print("Toner end status:")
+        print(toner_end)
+        print("Toner end date:")
+        print(toner_end_date)
         print("Current toner pages:")
         print(pages)
         print("Previous toner pages:")
