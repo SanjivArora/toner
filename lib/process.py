@@ -10,24 +10,22 @@ def addFields(df, name_dict):
     for new, orig in name_dict.items():
         df[new] = df[orig]
 
-def processFile(s3_url, show_fields=False, keep_orig=False):
-    p = readFromS3(s3_url)
-    orig_fields = p.columns
+def normalizeFields(p, show_fields=False, allow_missing=False):
     names = p.columns.tolist()
     # Ensure the alphanumerical model IDs are interpreted as strings
     p.Model = p.Model.astype('str')
     
-    toner = findFields(names, '.*Toner.Bottle.%s.Remaining.Toner.(?!previous).*', 'Toner.%s')
+    toner = findFields(names, '.*Toner.Bottle.%s.Remaining.Toner.(?!previous).*', 'Toner.%s', allow_missing=allow_missing)
     addFields(p, toner)
     toner_names = list(toner.keys())
     
-    pages = findFields(names, '.*Pages.Current.Toner.%s.(?!previous).*', 'Pages.Toner.%s')
+    pages = findFields(names, '.*Pages.Current.Toner.%s.(?!previous).*', 'Pages.Toner.%s', allow_missing=allow_missing)
     addFields(p, pages)
     
-    prev_pages = findFields(names, '.*Pages.Current.Toner.%s.previous.*', 'Pages.Previous.Toner.%s')
+    prev_pages = findFields(names, '.*Pages.Current.Toner.%s.previous.*', 'Pages.Previous.Toner.%s', allow_missing=allow_missing)
     addFields(p, prev_pages)
 
-    cov = findFields(names, '.*Pixel.Coverage.Accumulation.Coverage.%s.*', 'Coverage.%s')
+    cov = findFields(names, '.*Pixel.Coverage.Accumulation.Coverage.%s.*', 'Coverage.%s', allow_missing=allow_missing)
     addFields(p, cov)
     cov_names = list(cov.keys())
     
@@ -35,7 +33,8 @@ def processFile(s3_url, show_fields=False, keep_orig=False):
         names,
         ['.*Replacement.Date.Developer.%s.*',
          '.*Unit.Replacement.Date.Dev.Unit.%s.*'],
-         'Developer.Replaced.%s'
+         'Developer.Replaced.%s',
+         allow_missing=allow_missing,
     )
     addFields(p, dev_replacement)
     
@@ -44,10 +43,10 @@ def processFile(s3_url, show_fields=False, keep_orig=False):
     #    ['.*(?<!Previous.Unit).PM.Counter.Rotation.Developer.%s.*',
     #     '.*Drive.Distance.Counter.%s_Developer.*'],
     #    'Developer.Rotation.%s',
-    #    take_first=True
+    #    take_first=True,
+    #    allow_missing=allow_missing,
     #)
     #addFields(p, dev_rotation)
-
 
     if show_fields:
         print("Toner level fields:")
@@ -62,10 +61,17 @@ def processFile(s3_url, show_fields=False, keep_orig=False):
         print(dev_replacement)
         print("Dev unit rotations:")
         print(dev_rotation)
-    
-    times = ['RetrievedDate', 'RetrievedDateTime']
+    return toner_names, cov_names
 
-    # Add fields for 
+def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True):
+    p = readFromS3(s3_url)
+    orig_fields = p.columns
+    
+    toner_names, cov_names = normalizeFields(p, show_fields, allow_missing)
+    colors_matched = [c for c in colors_norm if f'Toner.{c}' in toner_names]
+
+    # Add delta and replacements
+    times = ['RetrievedDate', 'RetrievedDateTime']
     to_add = list(toner_names + cov_names + times)
     delta_fields = [x+'.delta' for x in to_add]
     time_deltas = [x+'.delta' for x in times]
@@ -80,28 +86,29 @@ def processFile(s3_url, show_fields=False, keep_orig=False):
     addRates(p, to_add)
     addReplacements(p, toner_names)
     
-    print("Adding toner bottle indices")
-    p = sortReadings(p)
-    for color in colors_norm:
-        p = indexToner(p, color)
-        
-    print("Adding final page count for current toner")
-    for color in colors_norm:
-        addTonerPages(p, color)
-        
-    print("Project pages for toner bottles and calculate ratios vs. actual pages")
-    for color in colors_norm:
-        projectPages(p, color)
-        
-    print("Project coverage for toner bottles and calculate ratios vs. estimated coverage")
-    for color in colors_norm:
-        projectCoverage(p, color)
+    if toner_stats:
+        print("Adding toner bottle indices")
+        p = sortReadings(p)
+        for color in colors_matched:
+            p = indexToner(p, color)
+            
+        print("Adding final page count for current toner")
+        for color in colors_matched:
+            addTonerPages(p, color)
+            
+        print("Project pages for toner bottles and calculate ratios vs. actual pages")
+        for color in colors_matched:
+            projectPages(p, color)
+            
+        print("Project coverage for toner bottles and calculate ratios vs. estimated coverage")
+        for color in colors_matched:
+            projectCoverage(p, color)
 
-    models = p.Model.unique()
-    print("Add toner usage ratios")
-    for color in colors_norm:
-        for m in models: 
-            addTonerRatio(p, color, m)
+        models = p.Model.unique()
+        print("Add toner usage ratios")
+        for color in colors_matched:
+            for m in models: 
+                addTonerRatio(p, color, m)
 
     if not keep_orig:
         print("Dropping original fields")
@@ -147,10 +154,10 @@ def selectTonerStats(df):
     res = df.loc[cols.index]
     return res
 
-
-def doProcessing(path, summary_rows_only=False):
+def doProcessing(args, summary_rows_only=False):
+    path, kwargs = args
     try:
-        res = processFile(f"s3://{in_bucket_name}/{path}")
+        res = processFile(f"s3://{in_bucket_name}/{path}", **kwargs)
         if summary_rows_only:
             res = selectTonerStats(res)
     except:
@@ -159,10 +166,10 @@ def doProcessing(path, summary_rows_only=False):
         res=None
     return res
 
-
-def buildDataset(to_use, num_procs=int(np.ceil(multiprocessing.cpu_count() / 2)), f=doProcessing):
+def buildDataset(to_use, kwargs={}, num_procs=int(np.ceil(multiprocessing.cpu_count() / 2)), f=doProcessing):
+    args = [(path, kwargs) for path in to_use]
     with multiprocessing.Pool(num_procs) as pool:
-        res_parts = pool.map(doProcessing, to_use, chunksize=1)
+        res_parts = pool.map(doProcessing, args, chunksize=1)
     res_parts = [x for x in res_parts if x is not None]
     print("Combining result parts")
     res = pd.concat(res_parts)

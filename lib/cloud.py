@@ -57,7 +57,7 @@ def readFromS3(s3_url):
     return p 
 
 # https://stackoverflow.com/questions/30249069/listing-contents-of-a-bucket-with-boto3
-def S3Kwys(bucket_name, prefix='/', delimiter='/', start_after=''):
+def S3Keys(bucket_name, prefix='/', delimiter='/', start_after=''):
     prefix = prefix[1:] if prefix.startswith(delimiter) else prefix
     start_after = (start_after or prefix) if prefix.endswith(delimiter) else start_after
     for page in s3_paginator.paginate(Bucket=bucket_name, Prefix=prefix, StartAfter=start_after):
@@ -81,7 +81,7 @@ def parseName(p):
 
 # Get (model, region, date, path) tuples for cached datasets
 def getCacheDetails(region = 'RNZ', bucket=in_bucket_name):
-    ks = S3Kwys(bucket)
+    ks = S3Keys(bucket)
     ks = list(ks)
     candidates = list(map(parseName, ks))
     candidates = list(filter(lambda x: x[1]==region, candidates))
