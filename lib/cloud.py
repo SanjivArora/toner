@@ -11,20 +11,19 @@ from functools import reduce
 import pandas as pd
 
 
-s3 = boto3.resource('s3')
-s3_client = boto3.client('s3')
 in_bucket_name = 'ricoh-prediction-data-cache'
 
-s3_paginator = s3_client.get_paginator('list_objects_v2')
 
 
 def readFeatherFileFromS3(s3_url):
     assert s3_url.startswith("s3://")
     bucket_name, key_name = s3_url[5:].split("/", 1)
 
+    s3_client = boto3.client('s3')
     retr = s3_client.get_object(Bucket=bucket_name, Key=key_name)
     
-    return pd.read_feather(io.BytesIO(retr['Body'].read()))
+    # Disable threading for reading feather file as this interacts poorly with multiprocessing
+    return pd.read_feather(io.BytesIO(retr['Body'].read()), use_threads=False)
 
 def writeFeatherFileToS3(s3_url, df):
     assert s3_url.startswith("s3://")
@@ -34,6 +33,7 @@ def writeFeatherFileToS3(s3_url, df):
     df.to_feather(f)
     f.seek(0)
     
+    s3 = boto3.resource('s3')
     s3.Object(bucket_name, key_name).put(Body=f)
     
 def writeCSVFileToS3(s3_url, df, index=False):
@@ -42,6 +42,7 @@ def writeCSVFileToS3(s3_url, df, index=False):
     
     contents = df.to_csv(index=index)
     
+    s3 = boto3.resource('s3')
     s3.Object(bucket_name, key_name).put(Body=contents)
     
 def readFromS3(s3_url):
@@ -58,6 +59,8 @@ def readFromS3(s3_url):
 def S3Keys(bucket_name, prefix='/', delimiter='/', start_after=''):
     prefix = prefix[1:] if prefix.startswith(delimiter) else prefix
     start_after = (start_after or prefix) if prefix.endswith(delimiter) else start_after
+    s3_client = boto3.client('s3')
+    s3_paginator = s3_client.get_paginator('list_objects_v2')
     for page in s3_paginator.paginate(Bucket=bucket_name, Prefix=prefix, StartAfter=start_after):
         for content in page.get('Contents', ()):
             yield content['Key']
