@@ -26,7 +26,7 @@ models = None
 predict_all=False
 #predict_all=True
 
-to_emails = ['bnarsey@ricoh.co.nz', 'mvas@ricoh.co.nz', 'smatthews@ricoh.co.nz', 'redwey@ricoh.co.nz']
+to_emails = ['bnarsey@ricoh.co.nz', 'mvas@ricoh.co.nz', 'smatthews@ricoh.co.nz', 'redwy@ricoh.co.nz']
 #to_emails = ['smatthews@ricoh.co.nz']
 from_email = "Ricoh Prediction <ricoh-prediction-mail@sdmatthews.com>"
 email_subject = 'Auckland University Predictions'
