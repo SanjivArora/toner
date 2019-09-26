@@ -16,17 +16,22 @@ from lib.predict_coverage import *
 from lib import cloud
 
 
-# Set to limit the number of cores to use to build dataset. Default is the number of physical cores.
+# Set to limit the number of processes to use to build dataset. Default is the number of physical cores.
 build_dataset_procs = None
 
 models = None
 #models = ['E19']
+
+# Predict every machine, regardless of whether the serial is in the Auckland University list
+predict_all=False
+#predict_all=True
 
 to_emails = ['bnarsey@ricoh.co.nz', 'mvas@ricoh.co.nz', 'smatthews@ricoh.co.nz', 'redwey@ricoh.co.nz']
 #to_emails = ['smatthews@ricoh.co.nz']
 from_email = "Ricoh Prediction <ricoh-prediction-mail@sdmatthews.com>"
 email_subject = 'Auckland University Predictions'
 aws_region = "us-east-1"
+
 
 # Adapted from https://stackoverflow.com/questions/45298069/ses-attachments-with-python
 def sendEmail(preds, current):
@@ -62,7 +67,6 @@ def sendEmail(preds, current):
     print(result)
 
 
-
 cs = cloud.getCacheDetails()
 model_paths = dict([x[0], x[3]] for x in cs)
 if models:
@@ -70,11 +74,13 @@ if models:
 
 res = buildDataset(model_paths.values(), kwargs={'allow_missing':True}, num_procs=build_dataset_procs)
 
-au_sers = pd.read_excel('s3://ricoh-prediction-misc/UoA.xlsx')['SerialNo']
-#au_sers = res.Serial.unique()
+if predict_all:
+    sers = res.Serial.unique()
+else:
+    sers = pd.read_excel('s3://ricoh-prediction-misc/UoA.xlsx')['SerialNo']
 
 #preds = makePredictions(res)
-preds = makePredictions(res[res.Serial.isin(au_sers)])
+preds = makePredictions(res[res.Serial.isin(sers)])
 
 current = preds[preds['Days.To.Zero.From.Today.Earliest.Expected'] <= 7]
 current = current[current['DataAge'] < 7] 

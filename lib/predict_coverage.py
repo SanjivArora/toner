@@ -69,7 +69,7 @@ def latestProjection(df, color='K'):
 
 def imputedCoveragePerToner(df, color='K'):
     field = f'Coverage.Per.Toner.{color}'
-    # If we don't have a measured coverage per toner, use the 30th percentile of the latest values for the group
+    # If we don't have a measured coverage per toner, use the 20th percentile of the latest values for the group
     xs = latestProjection(df, color)
     valid = xs.dropna()
     if len(valid):
@@ -122,6 +122,7 @@ def estimateDaysToZeroBruteForce(ser, cov_per_toner_map, filtered_data_map, mode
     machine_hist = filtered_data_map[color][ser]
     per_toner = cov_per_toner_map[getModel(ser)][color][ser]
     latest_toner = latest_toners[color][ser]
+    assert not pd.isna(latest_toner)
     cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color])
     cov_remaining_est = latest_toner * per_toner
     for day in range(0, 101):
@@ -137,6 +138,7 @@ def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map
     machine_hist = filtered_data_map[color][ser]
     per_toner = cov_per_toner_map[getModel(ser)][color][ser]
     latest_toner = latest_toners[color][ser]
+    assert not pd.isna(latest_toner)
     cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color])
     cov_remaining_est = latest_toner * per_toner
     if cov_remaining_est == 0:
@@ -165,21 +167,28 @@ def makePredictionsInner(x, c, percentile=95):
     res.loc[s, 'LatestData'] = data_date
     lag_days = (dt.datetime.today().date() - data_date).days
     res.loc[s, 'DataAge'] = lag_days
-    res.loc[s, f'Toner.Percent'] = d[f'Toner.{c}'][0]
+    toner = d[f'Toner.{c}'][0]
+    assert not pd.isna(toner)
+    res.loc[s, f'Toner.Percent'] = toner
     def predict(percentile=percentile):
-       return estimateDaysToZero(s, prediction_cov_per_toner_map, prediction_filtered_data_map, prediction_model_hist_map, prediction_latest_toners, color=c)
+       return estimateDaysToZero(s, prediction_cov_per_toner_map, prediction_filtered_data_map, prediction_model_hist_map, prediction_latest_toners, color=c, cov_percentile=percentile)
     res.loc[s, f'Days.To.Zero.From.Today.Earliest.Expected'] = predict() - lag_days
     res.loc[s, f'Days.To.Zero.From.Today.Expected'] = predict(percentile=50) - lag_days
     return res
 
 def makePredictionsForSerial(x, percentile=95):
-    try:
-        parts = map(lambda c: makePredictionsInner(x, c, percentile), colors_norm)
-        return pd.concat(parts)
-    except:
-        print(f"Exception processing {x[0]}")
-        traceback.print_exc()
+    parts = []
+    for c in colors_norm:
+        try:
+            part = makePredictionsInner(x, c, percentile)
+            parts.append(part)
+        except:
+            print(f"Exception processing {c} for {x[0]}")
+            traceback.print_exc()
+    if not parts:
         return False
+    else:
+        return pd.concat(parts)
 
 # Use global variables for shared data as workaround for limitations of multiprocessing module
 # Note that this means that makePredictions() is not thread-safe.
@@ -200,7 +209,7 @@ def makePredictions(df):
     with multiprocessing.Pool() as pool:
         res_parts = pool.map(makePredictionsForSerial, by_serial)
     successes = [x for x in res_parts if x is not False]
-    print("{len(successes)} serials successfully processed, {len(res_parts)-len(successes)} failures")
+    print(f"{len(successes)} serials successfully processed, {len(res_parts)-len(successes)} failures")
     return pd.concat(successes)
 
 def plotToner(s, color=None):
@@ -217,12 +226,6 @@ def plotToner(s, color=None):
             name=f'Toner.{c}',
         ))
         f=f'Toner.End.Status.{c}'
-#         toner_status = df[f].isin(['N','E']).astype('int') * 100
-#         fig.add_trace(go.Scatter(
-#             x=df.RetrievedDate,
-#             y=toner_status,
-#             name=f'Toner At/Near End - {c}',
-#         ))
         toner_status = df[f].isin(['N']).astype('int') * 100
         fig.add_trace(go.Scatter(
             x=df.RetrievedDate,
