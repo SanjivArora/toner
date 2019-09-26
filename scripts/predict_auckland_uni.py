@@ -16,8 +16,8 @@ from lib.predict_coverage import *
 from lib import cloud
 
 
-# Set to limit the number of cores to use to build dataset (default is number of logical cores)
-build_datasets_procs = None
+# Set to limit the number of cores to use to build dataset. Default is the number of physical cores.
+build_dataset_procs = None
 
 models = None
 #models = ['E19']
@@ -68,8 +68,7 @@ model_paths = dict([x[0], x[3]] for x in cs)
 if models:
     model_paths = {m:p for m, p in model_paths.items() if m in models}
 
-build_datasets_procs = None
-res = buildDataset(model_paths.values(), kwargs={'allow_missing':True}, num_procs=build_datasets_procs)
+res = buildDataset(model_paths.values(), kwargs={'allow_missing':True}, num_procs=build_dataset_procs)
 
 au_sers = pd.read_excel('s3://ricoh-prediction-misc/UoA.xlsx')['SerialNo']
 #au_sers = res.Serial.unique()

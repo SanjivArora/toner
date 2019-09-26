@@ -12,17 +12,17 @@ import pandas as pd
 
 
 s3 = boto3.resource('s3')
+s3_client = boto3.client('s3')
 in_bucket_name = 'ricoh-prediction-data-cache'
 
-s3_paginator = boto3.client('s3').get_paginator('list_objects_v2')
+s3_paginator = s3_client.get_paginator('list_objects_v2')
 
 
 def readFeatherFileFromS3(s3_url):
     assert s3_url.startswith("s3://")
     bucket_name, key_name = s3_url[5:].split("/", 1)
 
-    s3 = boto3.client('s3')
-    retr = s3.get_object(Bucket=bucket_name, Key=key_name)
+    retr = s3_client.get_object(Bucket=bucket_name, Key=key_name)
     
     return pd.read_feather(io.BytesIO(retr['Body'].read()))
 
@@ -34,7 +34,6 @@ def writeFeatherFileToS3(s3_url, df):
     df.to_feather(f)
     f.seek(0)
     
-    s3 = boto3.resource('s3')
     s3.Object(bucket_name, key_name).put(Body=f)
     
 def writeCSVFileToS3(s3_url, df, index=False):
@@ -43,7 +42,6 @@ def writeCSVFileToS3(s3_url, df, index=False):
     
     contents = df.to_csv(index=index)
     
-    s3 = boto3.resource('s3')
     s3.Object(bucket_name, key_name).put(Body=contents)
     
 def readFromS3(s3_url):
