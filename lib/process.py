@@ -4,6 +4,7 @@ import traceback
 from .names import *
 from .derived import *
 from .cloud import *
+from .common import timed
 
 
 def addFields(df, name_dict):
@@ -176,6 +177,7 @@ def doProcessing(args, summary_rows_only=False):
         res=None
     return res
 
+@timed
 def buildDataset(to_use, kwargs={}, num_procs=int(np.ceil(multiprocessing.cpu_count() / 2)), f=doProcessing):
     args = [(path, kwargs) for path in to_use]
     with multiprocessing.Pool(num_procs) as pool:

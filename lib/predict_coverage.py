@@ -19,6 +19,7 @@ from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot
 from .developer import *
 from .process import *
 from .names import colors_norm
+from .common import timed
 
 
 def filterNaN(xs):
@@ -60,6 +61,15 @@ def predictCoverage(dist, days, n=1000):
     if days==0:
         return [0]
     d = [np.sum(random.choices(dist, k=days)) for i in range(n)]
+    return np.array(d)
+
+# Use a rolling sum for fast approxiate calculation
+def predictCoverageFast(dist, days, n=100000):
+    if days==0:
+        return [0]
+    r = np.random.choice(dist, n+days-1)
+    s = pd.Series(r)
+    d = s.rolling(days).sum()[(days-1):]
     return np.array(d)
 
 def latestProjection(df, color='K'):
@@ -126,7 +136,7 @@ def estimateDaysToZeroBruteForce(ser, cov_per_toner_map, filtered_data_map, mode
     cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color])
     cov_remaining_est = latest_toner * per_toner
     for day in range(0, 101):
-        cov_predicted = predictCoverage(cov_dist, day)
+        cov_predicted = predictCoverageFast(cov_dist, day)
         cov = np.percentile(cov_predicted, cov_percentile)
         #print(f"{ser}:{day}:{cov_remaining_est}:{cov}")
         if cov >= cov_remaining_est:
@@ -148,7 +158,7 @@ def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map
             return min_val
         test = (min_val+max_val) / 2
         test = int(test)
-        cov_predicted = predictCoverage(cov_dist, test)
+        cov_predicted = predictCoverageFast(cov_dist, test)
         cov = np.percentile(cov_predicted, cov_percentile)
         #print(f"{ser}:{test}:{int(cov_remaining_est)}:{int(cov)}")
         if cov >= cov_remaining_est:
@@ -176,6 +186,7 @@ def makePredictionsInner(x, c, percentile=95):
     res.loc[s, f'Days.To.Zero.From.Today.Expected'] = predict(percentile=50) - lag_days
     return res
 
+@timed
 def makePredictionsForSerial(x, percentile=95):
     parts = []
     for c in colors_norm:
@@ -196,6 +207,7 @@ prediction_cov_per_toner_map = None
 prediction_filtered_data_map = None
 prediction_latest_toners = None
 prediction_model_hist_map = None
+@timed
 def makePredictions(df):
     global prediction_cov_per_toner_map
     global prediction_filtered_data_map
