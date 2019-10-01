@@ -2,7 +2,7 @@ import multiprocessing
 import multiprocessing.pool
 import traceback
 import time
-from random import randint
+import gc
 
 from .names import *
 from .derived import *
@@ -86,22 +86,24 @@ def applyColorSetInner(args):
     return f(process_df, color)
 
 def applyColorSet(f, colors):
-    pool = multiprocessing.Pool(len(colors))        
-    res_parts = pool.map(applyColorSetInner, [(f, color) for color in colors])
-    res = pd.DataFrame()
-    for part in res_parts:
-        #print(part)
-        duplicated = set(res.columns).intersection(part.columns)
-        if duplicated:
-            raise Exception(f"Duplicated columns: {', '.join(duplicated)}")
-        res[part.columns]=part
+    with multiprocessing.Pool(len(colors)) as pool:
+        res_parts = pool.map(applyColorSetInner, [(f, color) for color in colors], chunksize=1)
+        res = pd.DataFrame()
+        for part in res_parts:
+            #print(part)
+            duplicated = set(res.columns).intersection(part.columns)
+            if duplicated:
+                raise Exception(f"Duplicated columns: {', '.join(duplicated)}")
+            res[part.columns]=part
     return res
-
 
 def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True):
     global process_df
 
     start_time = time.time()
+
+    # This is memory intensive, so garbage collect to free up any lingering allocations
+    gc.collect()
 
     def status(text):
         now = time.time()
@@ -174,6 +176,7 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
         status("Add toner usage ratios")
         process_df = apply(getTonerRatio)
     
+    process_df = None
     status("Finished")
     return p
 
