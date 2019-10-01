@@ -30,7 +30,7 @@ def addSumRate(df, names):
     data = df[names].divide(df['RetrievedDateTime.delta.days'], axis='rows')
     df[[name+".rate" for name in names]] = data
     
-def addTonerPages(df, color='K'):
+def getTonerPages(df, color='K'):
     def inner(x):
         replaced = x[f'Toner.{color}.replaced']
         vals = x[f'Pages.Previous.Toner.{color}'].where(replaced)
@@ -38,9 +38,9 @@ def addTonerPages(df, color='K'):
         vals = vals.shift(1).fillna(method='ffill')
         return vals
     by_machine=df.groupby('Serial', group_keys=False)
-    res = by_machine.apply(inner)
-    #df[f'Pages.Toner.{color}'] = res['res'].tolist()
-    df[f'Pages.Total.Toner.{color}'] = res
+    r = by_machine.apply(inner)
+    res = pd.DataFrame()
+    res[f'Pages.Total.Toner.{color}'] = r
     return res
 
 # Project number of pages per bottle using minimum nonzero toner% reading and calculate ratio with actual number of pages
@@ -64,10 +64,12 @@ def projectPages(df, color="K", threshold=30):
         }, index=[x.head(1).index])
         return res
     by_toner = df.groupby(f'TonerIndex.{color}', group_keys=False)
-    res = by_toner.apply(inner).reset_index()
+    r = by_toner.apply(inner).reset_index()
     fields = [f'Projected.Pages.{color}', f'Projected.Pages.Ratio.{color}']
+    res = pd.DataFrame(index=r.idx)
     for field in fields:
-        df.loc[res.idx, field] = res[field].tolist()
+        res.loc[r.idx, field] = r[field].tolist()
+    return res
             
 def projectCoverage(df, color="K", min_range=50):
     # Estimate coverage at start and end of the bottle using minimum and maximum nonzero toner% readings
@@ -112,10 +114,12 @@ def projectCoverage(df, color="K", min_range=50):
         }, index=[x.head(1).index])
         return res
     by_toner = df.groupby(f'TonerIndex.{color}', group_keys=False)
-    res = by_toner.apply(inner).reset_index()
+    r = by_toner.apply(inner).reset_index()
     fields = [f'Coverage.Start.{color}', f'Projected.Coverage.{color}', f'Coverage.Per.Toner.{color}']
+    res = pd.DataFrame(index=r.idx)
     for field in fields:
-        df.loc[res.idx, field] = res[field].tolist()
+        res.loc[r.idx, field] = r[field].tolist()
+    return res
         
 # Calculate median by serial rather than by toner bottle, as machines with bad efficiency go through more toner
 def medianCoverage(df, color, model):
@@ -126,8 +130,11 @@ def medianCoverage(df, color, model):
     return res
 
 # Specific toner usage for coverage vs median for color and model
-def addTonerRatio(df, color, model):
-    med = medianCoverage(df, color, model)
-    cov = f'Projected.Coverage.{color}'
-    f = f'Toner.Usage.Ratio.{color}'
-    df.loc[df.Model==model, f] = med / df.loc[df.Model==model, cov]
+def getTonerRatio(df, color):
+    res = pd.DataFrame()
+    for model in df.Model.unique():
+        med = medianCoverage(df, color, model)
+        cov = f'Projected.Coverage.{color}'
+        f = f'Toner.Usage.Ratio.{color}'
+        res.loc[df.Model==model, f] = med / df.loc[df.Model==model, cov]
+    return res
