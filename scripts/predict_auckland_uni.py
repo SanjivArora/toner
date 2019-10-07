@@ -32,6 +32,9 @@ from_email = "Ricoh Prediction <ricoh-prediction-mail@sdmatthews.com>"
 email_subject = 'Auckland University Predictions'
 aws_region = "us-east-1"
 
+# UofA
+primary_account=1747
+
 
 # Adapted from https://stackoverflow.com/questions/45298069/ses-attachments-with-python
 def sendEmail(preds, current):
@@ -77,7 +80,8 @@ res = buildDataset(model_paths.values(), kwargs={'allow_missing':True}, num_proc
 if predict_all:
     sers = res.Serial.unique()
 else:
-    sers = pd.read_excel('s3://ricoh-prediction-misc/UoA.xlsx')['SerialNo']
+    ser_df = pd.read_csv('s3://ricoh-prediction-misc/mif/current/customer.csv')
+    sers = ser_df[ser_df.PrimaryAcc==primary_account]['SerialNo']
 
 #preds = makePredictions(res)
 preds = makePredictions(res[res.Serial.isin(sers)])
