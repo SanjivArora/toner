@@ -4,6 +4,8 @@ import numpy as np
 import plotly
 import plotly.graph_objs as go
 
+from .names import colors_norm
+
 
 def plotAtRemoteLatency(df, max_days=7, days_history=None):
     if days_history:
@@ -37,4 +39,39 @@ def plotAtRemoteLatency(df, max_days=7, days_history=None):
         title='RNZ F@lcon Data Internal Latency',
         #xaxis_nticks=36
     )
+    fig.show()
+
+def plotToner(df, s, color=None):
+    fig = go.Figure()
+    df = df[df.Serial==s].sort_values('RetrievedDate')
+    if color is None:
+        colors = colors_norm
+    else:
+        colors = [color]
+    for c in colors:
+        fig.add_trace(go.Scatter(
+            x=df.RetrievedDate,
+            y=df[f'Toner.{c}'],
+            name=f'Toner.{c}',
+        ))
+        f=f'Toner.End.Status.{c}'
+#         toner_status = df[f].isin(['N','E']).astype('int') * 100
+#         fig.add_trace(go.Scatter(
+#             x=df.RetrievedDate,
+#             y=toner_status,
+#             name=f'Toner At/Near End - {c}',
+#         ))
+        toner_status = df[f].isin(['N']).astype('int') * 100
+        fig.add_trace(go.Scatter(
+            x=df.RetrievedDate,
+            y=toner_status,
+            name=f'Toner Near End - {c}',
+        ))
+        toner_status = df[f].isin(['E']).astype('int') * 100
+        fig.add_trace(go.Scatter(
+            x=df.RetrievedDate,
+            y=toner_status,
+            name=f'Toner At End - {c}',
+        ))
+    fig.update_layout(title=s)
     fig.show()
