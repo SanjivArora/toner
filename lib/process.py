@@ -47,6 +47,10 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
          allow_missing=allow_missing,
     )
     addFields(p, dev_replacement)
+
+    total_pages = findFields(names, '.*Total.Total.PrtPGS.*', 'Pages', colors=False)
+    addFields(p, total_pages)
+    total_pages_names = list(total_pages.keys())
     
     #dev_rotation = findFields(
     #    names,
@@ -75,7 +79,7 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
         print(dev_replacement)
         print("Dev unit rotations:")
         print(dev_rotation)
-    return toner_names, cov_names
+    return toner_names, cov_names, total_pages_names
 
 
 # Use global variables for shared data as workaround for limitations of multiprocessing module
@@ -115,7 +119,7 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
     orig_fields = p.columns
     
     status("Normalizing field names")
-    toner_names, cov_names = normalizeFields(p, show_fields, allow_missing)
+    toner_names, cov_names, pages_names = normalizeFields(p, show_fields, allow_missing)
     colors_matched = [c for c in colors_norm if f'Toner.{c}' in toner_names]
 
     if not colors_matched:
@@ -136,7 +140,7 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
 
     # Add delta and replacements
     times = ['RetrievedDate', 'RetrievedDateTime']
-    to_add = list(toner_names + cov_names + times)
+    to_add = list(toner_names + cov_names + times + pages_names)
     delta_fields = [x+'.delta' for x in to_add]
     time_deltas = [x+'.delta' for x in times]
     replacement_fields = [x+'.replaced' for x in toner_names]
