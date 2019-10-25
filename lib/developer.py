@@ -41,8 +41,8 @@ def currentBadDevs(df, color, cur=None, mult=None):
         cur = currentDevUnits(df, color)
     sers = cur.Serial.unique()
     res = []
-    for ser in sers:
-        vals = cur.loc[cur.Serial==ser, f'Toner.Usage.Ratio.{color}'].dropna()
+    for ser, df1 in cur.groupby(cur.Serial):
+        vals = df1[f'Toner.Usage.Ratio.{color}'].dropna()
         latest_high = (vals.head(1) > mult).sum() == 1
         two_elevated = (vals > 2).sum() >= 2
         if latest_high and two_elevated:
