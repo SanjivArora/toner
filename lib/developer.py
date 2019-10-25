@@ -85,22 +85,20 @@ def plotCurrentBadDevs(df, color, model=None, log=True, mult=None):
         
 def plotDevLifeCycle(df, color, model=None, log=True):
     if model:
-        df = df.loc[df.Model==model]
-    cur = df
+        df = df[df.Model==model]
     #sers = currentBadDevs(df, color, df)
-    #sers = df.Serial.unique()
     
     # Find serials with dev replacements
     f = f"Developer.Replaced.{color}"
     df = hasRecentReadings(df, f'Toner.Usage.Ratio.{color}')
-    gp = df[['Serial', f]].groupby(['Serial'], group_keys=False)
-    hits = gp.apply(lambda x: x[f].unique().size > 1)
-    sers = hits[hits].reset_index().Serial
     
+    by_serial = df.groupby('Serial')
     traces = []
-    for ser in sers:
-        data = cur.loc[cur.Serial==ser,['RetrievedDate', f'Developer.Rotation.{color}', f'Toner.Usage.Ratio.{color}']].dropna()
-        ydata = data [f'Toner.Usage.Ratio.{color}']
+    for ser, df1 in by_serial:
+        if df1[f].unique().size < 2:
+            continue
+        data = df1[['RetrievedDate', f'Developer.Rotation.{color}', f'Toner.Usage.Ratio.{color}']].dropna()
+        ydata = data[f'Toner.Usage.Ratio.{color}']
         if log:
             ydata = np.log(ydata)
         traces.append(go.Scatter(x=data[f'Developer.Rotation.{color}'], y=ydata, name=ser))

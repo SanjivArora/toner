@@ -56,15 +56,15 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     addFields(p, used_bottles)
     used_bottles_names = list(used_bottles.keys())
     
-    #dev_rotation = findFields(
-    #    names,
-    #    ['.*(?<!Previous.Unit).PM.Counter.Rotation.Developer.%s.*',
-    #     '.*Drive.Distance.Counter.%s_Developer.*'],
-    #    'Developer.Rotation.%s',
-    #    take_first=True,
-    #    allow_missing=allow_missing,
-    #)
-    #addFields(p, dev_rotation)
+    dev_rotation = findFields(
+        names,
+        ['.*(?<!Previous.Unit).PM.Counter.Rotation.Developer.%s.*',
+         '.*Drive.Distance.Counter.%s_Developer.*'],
+        'Developer.Rotation.%s',
+        take_first=True,
+        allow_missing=allow_missing,
+    )
+    addFields(p, dev_rotation)
 
     if show_fields:
         print("Toner level fields:")
