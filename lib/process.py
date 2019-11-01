@@ -47,6 +47,9 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
          allow_missing=allow_missing,
     )
     addFields(p, dev_replacement)
+    # Convert 'yymmdd' representation of dev unit replacement dates to datetime
+    for f in dev_replacement.keys():
+        p[f] = pd.to_datetime(p[f], format='%y%m%d', errors='coerce')
 
     total_pages = findFields(names, '.*Total.Total.PrtPGS.*', 'Pages', colors=False, allow_missing=allow_missing)
     addFields(p, total_pages)
@@ -96,13 +99,13 @@ def applyColorSetInner(args):
 def applyColorSet(f, colors):
     with multiprocessing.Pool(len(colors)) as pool:
         res_parts = pool.map(applyColorSetInner, [(f, color) for color in colors], chunksize=1)
-        res = pd.DataFrame()
-        for part in res_parts:
-            #print(part)
-            duplicated = set(res.columns).intersection(part.columns)
-            if duplicated:
-                raise Exception(f"Duplicated columns: {', '.join(duplicated)}")
-            res[part.columns]=part
+    res = pd.DataFrame()
+    for part in res_parts:
+        #print(part)
+        duplicated = set(res.columns).intersection(part.columns)
+        if duplicated:
+            raise Exception(f"Duplicated columns: {', '.join(duplicated)}")
+        res = pd.concat([res, part], axis=1, sort=False)
     return res
 
 def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True):
@@ -158,35 +161,33 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
     addRates(p, to_add)
     addReplacements(p, toner_names)
     
-    p = sortReadings(p)
+    process_df = sortReadings(p)
         
     if toner_stats:
         def apply(f):
+            global process_df
             res = applyColorSet(f, colors_matched)
-            p[res.columns] = res
-            #print(p[res.columns])
-            return p
-
-        process_df = p
+            process_df = pd.concat([process_df, res], axis=1, sort=False)
 
         status("Adding toner bottle indices")
-        process_df = apply(indexToner)
+        apply(indexToner)
             
         status("Adding final page count for current toner")
-        process_df = apply(getTonerPages)
+        apply(getTonerPages)
             
         status("Project pages for toner bottles and calculate ratios vs. actual pages")
-        process_df = apply(projectPages)
+        apply(projectPages)
             
         status("Project coverage for toner bottles and calculate ratios vs. estimated coverage")
-        process_df = apply(projectCoverage)
+        apply(projectCoverage)
 
         status("Add toner usage ratios")
-        process_df = apply(getTonerRatio)
+        apply(getTonerRatio)
     
+    res = process_df
     process_df = None
     status("Finished")
-    return p
+    return res 
 
 def summarizeTonerStats(p):
     print(f"Generating summary for {s3_url}")

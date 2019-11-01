@@ -58,17 +58,15 @@ def projectPages(df, color="K", threshold=30):
             total_pages = x.loc[min_idx, f'Pages.Total.Toner.{color}']
             ratio = total_pages / projection
         # Record at the first reading for the toner bottle
-        res = pd.DataFrame({
+        idx = x.head(1).index
+        data = {
             f'Projected.Pages.{color}': projection,
             f'Projected.Pages.Ratio.{color}': ratio,
-        }, index=[x.head(1).index])
+        }
+        res = pd.DataFrame(data=data, index=idx)
         return res
     by_toner = df.groupby(f'TonerIndex.{color}', group_keys=False)
-    r = by_toner.apply(inner).reset_index()
-    fields = [f'Projected.Pages.{color}', f'Projected.Pages.Ratio.{color}']
-    res = pd.DataFrame(index=r.idx)
-    for field in fields:
-        res.loc[r.idx, field] = r[field].tolist()
+    res = by_toner.apply(inner)
     return res
             
 def projectCoverage(df, color="K", min_range=50):
@@ -107,18 +105,16 @@ def projectCoverage(df, color="K", min_range=50):
                 cov_start = cov_max - cov_per_toner * (100-toner_max)
                 cov_projected = (cov_min - cov_start) + cov_per_toner * (100-toner_min)
         # Record at the first reading for the toner bottle
-        res = pd.DataFrame({
+        idx=x.head(1).index
+        data = {
             f'Coverage.Start.{color}': cov_start,
             f'Projected.Coverage.{color}': cov_projected,
             f'Coverage.Per.Toner.{color}': cov_per_toner,
-        }, index=[x.head(1).index])
+        }
+        res = pd.DataFrame(data=data, index=idx)
         return res
     by_toner = df.groupby(f'TonerIndex.{color}', group_keys=False)
-    r = by_toner.apply(inner).reset_index()
-    fields = [f'Coverage.Start.{color}', f'Projected.Coverage.{color}', f'Coverage.Per.Toner.{color}']
-    res = pd.DataFrame(index=r.idx)
-    for field in fields:
-        res.loc[r.idx, field] = r[field].tolist()
+    res = by_toner.apply(inner)
     return res
         
 # Calculate median by serial rather than by toner bottle, as machines with bad efficiency go through more toner

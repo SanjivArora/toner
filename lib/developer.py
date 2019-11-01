@@ -83,25 +83,32 @@ def plotCurrentBadDevs(df, color, model=None, log=True, mult=None):
         print("No current bad dev units")
         return False
         
+# Find serials with recent dev unit replacements
+def recentDevReplacement(df, color, weeks=26):
+    f = f"Developer.Replaced.{color}"
+    recent_idx = df[f] > dt.datetime.today().date() - dt.timedelta(weeks=weeks)
+    return df[recent_idx].Serial.unique()
+    
 def plotDevLifeCycle(df, color, model=None, log=True):
     if model:
         df = df[df.Model==model]
     #sers = currentBadDevs(df, color, df)
     
     # Find serials with dev replacements
-    f = f"Developer.Replaced.{color}"
-    df = hasRecentReadings(df, f'Toner.Usage.Ratio.{color}')
+    sers = recentDevReplacement(df, color)
+    df = df[df.Serial.isin(sers)]
     
     by_serial = df.groupby('Serial')
     traces = []
     for ser, df1 in by_serial:
-        if df1[f].unique().size < 2:
-            continue
+        # Only graph machines with history for several toner replacements 
+        if df1[f'Toner.{color}.replaced'].sum() < 3:
+           continue
         data = df1[['RetrievedDate', f'Developer.Rotation.{color}', f'Toner.Usage.Ratio.{color}']].dropna()
         ydata = data[f'Toner.Usage.Ratio.{color}']
         if log:
             ydata = np.log(ydata)
-        traces.append(go.Scatter(x=data[f'Developer.Rotation.{color}'], y=ydata, name=ser))
+        traces.append(go.Scatter(x=data[f'Developer.Rotation.{color}'], y=ydata, name=ser, opacity=0.3))
     if traces:
         title = f'Def Lifecycle - {model or ""} {color}'
         ylabel = 'Toner Usage vs Normal'
