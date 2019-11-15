@@ -69,6 +69,15 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     )
     addFields(p, dev_rotation)
 
+    # Always allow missing for toner call threshold as this comes in mutually exclusive variants
+    toner_call_threshold = findFields(names, '.*Toner.Call.Threshold.SP5.*', 'Toner.Call.Threshold', colors=False, allow_missing=True)
+    addFields(p, toner_call_threshold)
+    toner_call_threshold_colored = findFields(names, '.*Toner.Call.Threshold.%s.*', 'Toner.Call.Threshold.%s', colors=['K', 'CMY'], allow_missing=True)
+    addFields(p, toner_call_threshold_colored)
+    toner_call_timing = findFields(names, '.*Toner.Call.Timing.*', 'Toner.Call.Timing', colors=False, allow_missing=allow_missing)
+    addFields(p, toner_call_timing)
+
+
     if show_fields:
         print("Toner level fields:")
         print(toner)
@@ -86,6 +95,13 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
         print(dev_replacement)
         print("Dev unit rotations:")
         print(dev_rotation)
+        print("Total Pages:")
+        print(total_pages)
+        print("Usaed Bottles:")
+        print(used_bottles)
+        print("Dev unit rotations:")
+        print(dev_rotation)
+
     return toner_names, cov_names, total_pages_names, used_bottles_names
 
 

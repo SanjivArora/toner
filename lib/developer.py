@@ -33,10 +33,10 @@ def currentDevUnits(df, color):
 
 # Find serials where readings for the current dev unit have:
 # -The latest specific toner usage > mult*median
-# -At least two elevated readings > 2*median
+# -At least two elevated readings > mult*median (TODO: automatically set this to a suitable lower value)
 def currentBadDevs(df, color, cur=None, mult=None):
     if mult is None:
-        mult = 2.5
+        mult = 2.0
     if cur is None:
         cur = currentDevUnits(df, color)
     sers = cur.Serial.unique()
@@ -44,7 +44,7 @@ def currentBadDevs(df, color, cur=None, mult=None):
     for ser, df1 in cur.groupby(cur.Serial):
         vals = df1[f'Toner.Usage.Ratio.{color}'].dropna()
         latest_high = (vals.head(1) > mult).sum() == 1
-        two_elevated = (vals > 2).sum() >= 2
+        two_elevated = (vals > mult).sum() >= 2
         if latest_high and two_elevated:
             res.append(ser)
     return res
