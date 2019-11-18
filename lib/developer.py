@@ -89,20 +89,32 @@ def recentDevReplacement(df, color, weeks=26):
     recent_idx = df[f] > dt.datetime.today().date() - dt.timedelta(weeks=weeks)
     return df[recent_idx].Serial.unique()
     
-def plotDevLifeCycle(df, color, model=None, log=True):
+def plotDevLifeCycle(df, color, model=None, log=True, sers=None, only_current=False, min_replacements=3):
     if model:
         df = df[df.Model==model]
     #sers = currentBadDevs(df, color, df)
     
     # Find serials with dev replacements
-    sers = recentDevReplacement(df, color)
+    if sers is None:
+        if only_current:
+            sers = df.Serial.unique()
+        else:
+            sers = recentDevReplacement(df, color)
     df = df[df.Serial.isin(sers)]
+
+    # TODO: find more efficient approach
+    if only_current:
+        by_serial = df.groupby('Serial')
+        # Get list of dataframes of data for latest developer units
+        ser_to_df = by_serial.apply(lambda x: x.groupby('Developer.Replaced.Y'))
+        df_latest_list=[x.head().reset_index() for x in ser_to_df.tolist()] 
+        df = pd.concat(df_latest_list)
     
     by_serial = df.groupby('Serial')
     traces = []
     for ser, df1 in by_serial:
         # Only graph machines with history for several toner replacements 
-        if df1[f'Toner.{color}.replaced'].sum() < 3:
+        if df1[f'Toner.{color}.replaced'].sum() < min_replacements:
            continue
         data = df1[['RetrievedDate', f'Developer.Rotation.{color}', f'Toner.Usage.Ratio.{color}']].dropna()
         ydata = data[f'Toner.Usage.Ratio.{color}']

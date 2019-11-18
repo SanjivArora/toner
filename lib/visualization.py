@@ -41,7 +41,7 @@ def plotAtRemoteLatency(df, max_days=7, days_history=None):
     )
     fig.show()
 
-def plotToner(df, s, color=None):
+def plotToner(df, s, color=None, toner_status=True, dev_replacement=False, dev_yield=True, toner_usage_ratio=True):
     fig = go.Figure()
     df = df[df.Serial==s].sort_values('RetrievedDate')
     if color is None:
@@ -54,24 +54,42 @@ def plotToner(df, s, color=None):
             y=df[f'Toner.{c}'],
             name=f'Toner.{c}',
         ))
-        f=f'Toner.End.Status.{c}'
-#         toner_status = df[f].isin(['N','E']).astype('int') * 100
-#         fig.add_trace(go.Scatter(
-#             x=df.RetrievedDate,
-#             y=toner_status,
-#             name=f'Toner At/Near End - {c}',
-#         ))
-        toner_status = df[f].isin(['N']).astype('int') * 100
-        fig.add_trace(go.Scatter(
-            x=df.RetrievedDate,
-            y=toner_status,
-            name=f'Toner Near End - {c}',
-        ))
-        toner_status = df[f].isin(['E']).astype('int') * 100
-        fig.add_trace(go.Scatter(
-            x=df.RetrievedDate,
-            y=toner_status,
-            name=f'Toner At End - {c}',
-        ))
+        if toner_status:
+            f=f'Toner.End.Status.{c}'
+            toner_status = df[f].isin(['N']).astype('int') * 100
+            fig.add_trace(go.Scatter(
+                x=df.RetrievedDate,
+                y=toner_status,
+                name=f'Toner Near End - {c}',
+            ))
+            toner_status = df[f].isin(['E']).astype('int') * 100
+            fig.add_trace(go.Scatter(
+                x=df.RetrievedDate,
+                y=toner_status,
+                name=f'Toner At End - {c}',
+            ))
+        if dev_replacement:
+            rep_dates = df[f'Developer.Replaced.{c}']
+            rep = rep_dates.ne(rep_dates.shift()) & np.invert(rep_dates.isna())
+            rep[0] = False
+            fig.add_trace(go.Scatter(
+                x=df.RetrievedDate,
+                y=rep*100,
+                name=f'Developer Replaced ({c})',
+            ))
+        if dev_yield:
+            fig.add_trace(go.Scatter(
+                x=df.RetrievedDate,
+                y=df[f'Developer.Rotation.{c}'],
+                name=f'Developer Yield ({c})',
+            ))
+        if toner_usage_ratio:
+            usage_ratio = df[f'Toner.Usage.Ratio.{c}'].dropna()
+            fig.add_trace(go.Scatter(
+                x=df.loc[usage_ratio.index].RetrievedDate,
+                y=usage_ratio * 10,
+                name=f'Toner Usage Ratio * 10 ({c})',
+            ))
+            
     fig.update_layout(title=s)
     fig.show()
