@@ -21,6 +21,7 @@ build_dataset_procs = None
 
 models = None
 #models = ['E19']
+#models = ['308']
 
 # Predict every machine, regardless of whether the serial is in the Auckland University list
 predict_all=False
@@ -28,6 +29,7 @@ predict_all=False
 
 to_emails = ['bnarsey@ricoh.co.nz', 'mvas@ricoh.co.nz', 'smatthews@ricoh.co.nz', 'redwy@ricoh.co.nz']
 #to_emails = ['smatthews@ricoh.co.nz']
+#to_emails=[]
 from_email = "Ricoh Prediction <ricoh-prediction-mail@sdmatthews.com>"
 email_subject = 'Auckland University Predictions'
 aws_region = "us-east-1"
@@ -75,7 +77,7 @@ model_paths = dict([x[0], x[3]] for x in cs)
 if models:
     model_paths = {m:p for m, p in model_paths.items() if m in models}
 
-res = buildDataset(model_paths.values(), kwargs={'allow_missing':True}, num_procs=build_dataset_procs)
+res = buildDataset(model_paths.values(), kwargs={'allow_missing':True, 'nz_only':True}, num_procs=build_dataset_procs)
 
 if predict_all:
     sers = res.Serial.unique()

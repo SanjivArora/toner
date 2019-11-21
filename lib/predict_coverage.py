@@ -144,7 +144,7 @@ def estimateDaysToZeroBruteForce(ser, cov_per_toner_map, filtered_data_map, mode
     return day
 
 # Binary search for O(maxdays) -> O(log(maxdays)) speedup
-def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map, latest_toners, color='K', cov_percentile=95):
+def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map, latest_toners, color='K', cov_percentile=95, min_val=1, max_val=1000):
     machine_hist = filtered_data_map[color][ser]
     per_toner = cov_per_toner_map[getModel(ser)][color][ser]
     latest_toner = latest_toners[color][ser]
@@ -153,21 +153,21 @@ def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map
     cov_remaining_est = latest_toner * per_toner
     if cov_remaining_est == 0:
         return 0
-    def inner(min_val=1, max_val=1000):
-        if max_val - min_val <= 1:
-            return min_val
-        test = (min_val+max_val) / 2
+    def inner(min_v, max_v):
+        if max_v - min_v <= 1:
+            return min_v
+        test = (min_v+max_v) / 2
         test = int(test)
         cov_predicted = predictCoverageFast(cov_dist, test)
         cov = np.percentile(cov_predicted, cov_percentile)
         #print(f"{ser}:{test}:{int(cov_remaining_est)}:{int(cov)}")
         if cov >= cov_remaining_est:
-            return inner(min_val=min_val, max_val=test)
+            return inner(min_v=min_val, max_v=test)
         else:
-            return inner(min_val=test, max_val=max_val)
-    return inner()
+            return inner(min_v=test, max_v=max_v)
+    return inner(min_val, max_val)
 
-def makePredictionsInner(x, c, percentile=95):
+def makePredictionsInner(x, c, percentile=95, max_days=10):
     (s, d) = x
     res=pd.DataFrame()
     print(f"Predicting {s} {c}")
@@ -180,10 +180,20 @@ def makePredictionsInner(x, c, percentile=95):
     toner = d[f'Toner.{c}'][0]
     assert not pd.isna(toner)
     res.loc[s, f'Toner.Percent'] = toner
-    def predict(percentile=percentile):
-       return estimateDaysToZero(s, prediction_cov_per_toner_map, prediction_filtered_data_map, prediction_model_hist_map, prediction_latest_toners, color=c, cov_percentile=percentile)
-    res.loc[s, f'Days.To.Zero.From.Today.Earliest.Expected'] = predict() - lag_days
-    res.loc[s, f'Days.To.Zero.From.Today.Expected'] = predict(percentile=50) - lag_days
+    def predict(percentile=percentile, max_val=max_days*2):
+        return estimateDaysToZero(
+            s,
+            prediction_cov_per_toner_map,
+            prediction_filtered_data_map,
+            prediction_model_hist_map,
+            prediction_latest_toners,
+            color=c,
+            cov_percentile=percentile,
+            max_val=max_val,
+        )
+    # To produce an easily readible maximum value for the expected number of days to empty, predict well beyond max_days before subtracting lag then clip to max_days
+    res.loc[s, f'Days.To.Zero.From.Today.Earliest.Expected'] = min(predict() - lag_days, max_days)
+    res.loc[s, f'Days.To.Zero.From.Today.Expected'] = min(predict(percentile=50) - lag_days, max_days)
     return res
 
 @timed

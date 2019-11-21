@@ -124,7 +124,7 @@ def applyColorSet(f, colors):
         res = pd.concat([res, part], axis=1, sort=False)
     return res
 
-def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True):
+def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True, nz_only=False):
     global process_df
 
     start_time = time.time()
@@ -139,6 +139,12 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
 
     status("Reading data from S3")
     p = readFromS3(s3_url)
+
+    # At time of writing the RNZ Falcon files contain data for both AU and NZ machines. This is a workaround to restrict the result to NZ machines where required.
+    # TODO: implement by checking if serial is in the regional MRP file rather than using exported NZ DB content (this should be general as well as more current)
+    if nz_only:
+        p = p[p.Serial.isin(process_nz_sers)]
+
     orig_fields = p.columns
     
     status("Normalizing field names")
@@ -260,10 +266,17 @@ class NoDaemonProcess(multiprocessing.Process):
 class NonDaemonPool(multiprocessing.pool.Pool):
     Process = NoDaemonProcess
 
+# Global to make NZ serial list available for children - TODO: replace with MRP data
+process_nz_sers = None
+
 @timed
 def buildDataset(to_use, kwargs={}, num_procs=int(np.ceil(multiprocessing.cpu_count() / 2)), f=doProcessing):
+    global process_nz_sers
+    ser_df = pd.read_csv('s3://ricoh-prediction-misc/mif/current/customer.csv')
+    process_nz_sers = ser_df.SerialNo
+
     args = [(path, kwargs) for path in to_use]
-    # Use non-daemonic pool as we wanted children to be able to fork
+    # Use non-daemonic pool as we want children to be able to fork
     with NonDaemonPool(num_procs) as pool:
         res_parts = pool.map(doProcessing, args, chunksize=1)
     res_parts = [x for x in res_parts if x is not None]
