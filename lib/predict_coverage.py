@@ -167,7 +167,7 @@ def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map
             return inner(min_v=test, max_v=max_v)
     return inner(min_val, max_val)
 
-def makePredictionsInner(x, c, percentile=95, max_days=10):
+def makePredictionsInner(x, c, percentile=95, max_days=1000):
     (s, d) = x
     res=pd.DataFrame()
     print(f"Predicting {s} {c}")
