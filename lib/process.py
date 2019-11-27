@@ -62,7 +62,9 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     dev_rotation = findFields(
         names,
         ['.*(?<!Previous.Unit).PM.Counter.Rotation.Developer.%s.*',
-         '.*Drive.Distance.Counter.%s_Developer.*'],
+         #'.*Drive.Distance.Counter.%s_Developer.*'],
+         '.*Display.Distance.Dev.Unit.%s.SP7.942',
+        ],
         'Developer.Rotation.%s',
         take_first=True,
         allow_missing=allow_missing,

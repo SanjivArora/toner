@@ -34,7 +34,7 @@ def currentDevUnits(df, color):
 # Find serials where readings for the current dev unit have:
 # -The latest specific toner usage > mult*median
 # -At least two elevated readings > mult*median (TODO: automatically set this to a suitable lower value)
-def currentBadDevs(df, color, cur=None, mult=None):
+def currentBadDevs(df, color, cur=None, mult=None, min_bottle_current=2):
     if mult is None:
         mult = 2.0
     if cur is None:
@@ -43,17 +43,19 @@ def currentBadDevs(df, color, cur=None, mult=None):
     res = []
     for ser, df1 in cur.groupby(cur.Serial):
         vals = df1[f'Toner.Usage.Ratio.{color}'].dropna()
+        if vals.size < min_bottle_current:
+            continue
         latest_high = (vals.head(1) > mult).sum() == 1
         two_elevated = (vals > mult).sum() >= 2
         if latest_high and two_elevated:
             res.append(ser)
     return res
 
-def plotCurrentBadDevs(df, color, model=None, log=True, mult=None):
+def plotCurrentBadDevs(df, color, model=None, log=True, mult=None, **kwargs):
     if model:
         df = df.loc[df.Model==model]
     cur = currentDevUnits(df, color)
-    sers = currentBadDevs(df, color, cur, mult=mult)
+    sers = currentBadDevs(df, color, cur, mult=mult, **kwargs)
     traces = []
     for ser in sers:
         data = cur.loc[cur.Serial==ser,['RetrievedDate', f'Toner.Usage.Ratio.{color}']].dropna()

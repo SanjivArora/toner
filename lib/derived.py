@@ -71,6 +71,7 @@ def projectPages(df, color="K", threshold=30):
             
 def projectCoverage(df, color="K", min_range=50):
     # Estimate coverage at start and end of the bottle using minimum and maximum nonzero toner% readings
+    # Also break at developer replacement
     # TODO: Also calculate ratio of prospectively estimated end of bottle coverage to restrospectively estimated start of bottle coverare for next bottle
     # The prospective estimation measures the copier's estimate of the coverage on reaching 0% notional remaining toner, the retrospective estimate is for actual coverage on replacement (which may be significantly after reaching a notional 0% reading)
     #
@@ -113,7 +114,7 @@ def projectCoverage(df, color="K", min_range=50):
         }
         res = pd.DataFrame(data=data, index=idx)
         return res
-    by_toner = df.groupby(f'TonerIndex.{color}', group_keys=False)
+    by_toner = df.groupby([f'TonerIndex.{color}', f'Developer.Replaced.{color}'], group_keys=False)
     res = by_toner.apply(inner)
     return res
         
