@@ -56,16 +56,16 @@ def plotToner(df, s, color=None, toner_status=True, dev_replacement=False, dev_y
         ))
         if toner_status:
             f=f'Toner.End.Status.{c}'
-            toner_status = df[f].isin(['N']).astype('int') * 100
+            y = df[f].isin(['N']).astype('int') * 100
             fig.add_trace(go.Scatter(
                 x=df.RetrievedDate,
-                y=toner_status,
+                y=y,
                 name=f'Toner Near End - {c}',
             ))
-            toner_status = df[f].isin(['E']).astype('int') * 100
+            y = df[f].isin(['E']).astype('int') * 100
             fig.add_trace(go.Scatter(
                 x=df.RetrievedDate,
-                y=toner_status,
+                y=y,
                 name=f'Toner At End - {c}',
             ))
         if dev_replacement:
