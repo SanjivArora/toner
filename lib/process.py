@@ -51,9 +51,17 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     for f in dev_replacement.keys():
         p[f] = pd.to_datetime(p[f], format='%y%m%d', errors='coerce')
 
-    total_pages = findFields(names, '.*Total.Total.PrtPGS.*', 'Pages', colors=False, allow_missing=allow_missing)
+    total_pages = findFields(names, '.*Total.Total.PrtPGS.SP8.*', 'Pages', colors=False, allow_missing=allow_missing)
     addFields(p, total_pages)
-    total_pages_names = list(total_pages.keys())
+    pages_names = list(total_pages.keys())
+
+    copy_bw_pages = findFields(names, '.*Total.PrtPGS.Color.Mode.B.W.SP8.*', 'Pages.Copy.BW', colors=False, allow_missing=allow_missing)
+    addFields(p, copy_bw_pages)
+    pages_names += list(copy_bw_pages.keys())
+
+    print_bw_pages = findFields(names, '.*Total.PrtPGS.Print.Color.Mode.B.W.SP8.*', 'Pages.Print.BW', colors=False, allow_missing=allow_missing)
+    addFields(p, print_bw_pages)
+    pages_names += list(print_bw_pages.keys())
 
     used_bottles = findFields(names, '.*used.cartridge.Total.%s', 'Toner.Bottles.Total.%s', allow_missing=allow_missing)
     addFields(p, used_bottles)
@@ -104,7 +112,7 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
         print("Dev unit rotations:")
         print(dev_rotation)
 
-    return toner_names, cov_names, total_pages_names, used_bottles_names
+    return toner_names, cov_names, pages_names, used_bottles_names
 
 
 # Use global variables for shared data as workaround for limitations of multiprocessing module
@@ -168,6 +176,12 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
             'FileDate',
         ])
         p = p[to_use]
+
+    # Derive total BW and color page counts
+    print("Adding page count stats")
+    p['Pages.BW'] = p['Pages.Print.BW'] + p['Pages.Copy.BW']
+    p['Pages.Color'] = p['Pages'] - p['Pages.BW']
+    pages_names += ['Pages.BW', 'Pages.Color']
 
     # Add delta and replacements
     times = ['RetrievedDate', 'RetrievedDateTime']
