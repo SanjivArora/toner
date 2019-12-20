@@ -114,7 +114,7 @@ def projectCoverage(df, color="K", min_range=50):
         }
         res = pd.DataFrame(data=data, index=idx)
         return res
-    by_toner = df.groupby([f'TonerIndex.{color}', f'Developer.Replaced.{color}'], group_keys=False)
+    by_toner = df.groupby([f'TonerIndex.{color}', f'Developer.Replacement.Date.{color}'], group_keys=False)
     res = by_toner.apply(inner)
     return res
         

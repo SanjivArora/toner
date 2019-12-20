@@ -21,7 +21,7 @@ def hasRecentReadings(df, field=None, weeks=4*2):
 
 # Filter for latest dev unit with recent readings
 def currentDevUnits(df, color):
-    f = f"Developer.Replaced.{color}"
+    f = f"Developer.Replacement.Date.{color}"
     df = hasRecentReadings(df, f'Toner.Usage.Ratio.{color}')
     gp = df[['Serial', f]].groupby(['Serial'], group_keys=False)
     idxs = gp.apply(lambda x: x[f]==np.max(x[f]))
@@ -87,7 +87,7 @@ def plotCurrentBadDevs(df, color, model=None, log=True, mult=None, **kwargs):
         
 # Find serials with recent dev unit replacements
 def recentDevReplacement(df, color, weeks=26):
-    f = f"Developer.Replaced.{color}"
+    f = f"Developer.Replacement.Date.{color}"
     recent_idx = df[f] > dt.datetime.today().date() - dt.timedelta(weeks=weeks)
     return df[recent_idx].Serial.unique()
     
@@ -108,7 +108,7 @@ def plotDevLifeCycle(df, color, model=None, log=True, sers=None, only_current=Fa
     if only_current:
         by_serial = df.groupby('Serial')
         # Get list of dataframes of data for latest developer units
-        ser_to_df = by_serial.apply(lambda x: x.groupby('Developer.Replaced.Y'))
+        ser_to_df = by_serial.apply(lambda x: x.groupby(f'Developer.Replacement.Date.{color}'))
         df_latest_list=[x.head().reset_index() for x in ser_to_df.tolist()] 
         df = pd.concat(df_latest_list)
     

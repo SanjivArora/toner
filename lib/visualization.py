@@ -69,7 +69,7 @@ def plotToner(df, s, color=None, toner_status=True, dev_replacement=False, dev_y
                 name=f'Toner At End - {c}',
             ))
         if dev_replacement:
-            rep_dates = df[f'Developer.Replaced.{c}']
+            rep_dates = df[f'Developer.Replacement.Date.{c}']
             rep = rep_dates.ne(rep_dates.shift()) & np.invert(rep_dates.isna())
             rep[0] = False
             fig.add_trace(go.Scatter(

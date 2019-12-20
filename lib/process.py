@@ -43,8 +43,8 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
         names,
         ['.*Replacement.Date.Developer.%s.*',
          '.*Unit.Replacement.Date.Dev.Unit.%s.*'],
-         'Developer.Replaced.%s',
-         allow_missing=allow_missing,
+         'Developer.Replacement.Date.Recorded.%s',
+         allow_missing=True,
     )
     addFields(p, dev_replacement)
     # Convert 'yymmdd' representation of dev unit replacement dates to datetime
@@ -212,6 +212,10 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
             
         status("Adding final page count for current toner")
         apply(getTonerPages)
+
+        status("Deriving dev unit replacement dates")
+        apply(deriveDevReplacements)
+        apply(selectDevReplacementDate)
             
         status("Project pages for toner bottles and calculate ratios vs. actual pages")
         apply(projectPages)
@@ -250,6 +254,29 @@ def indexToner(df, color='K'):
     res[f] = new_labels.where(new)
     res[f] = res[f].fillna(method='bfill')
     return res
+
+def deriveDevReplacements(df, color='K'):
+    rotation = f'Developer.Rotation.{color}'
+    prev = df.shift(-1)
+    new = df[rotation] < prev[rotation]
+    new[-1] = True
+    dates = df.RetrievedDate
+    f = f'Developer.Replacement.Date.Derived.{color}'
+    res = dates.to_frame(name=f)
+    res[f] = dates.where(new)
+    res[f] = res[f].fillna(method='bfill')
+    return res
+
+def selectDevReplacementDate(df, color='K'):
+    priorities = [
+        f'Developer.Replacement.Date.Recorded.{color}',
+        f'Developer.Replacement.Date.Derived.{color}',
+    ]
+    for f in priorities:
+        if f in df.columns:
+            df[f'Developer.Replacement.Date.{color}'] = df[f]
+            break
+    return df[[f'Developer.Replacement.Date.{color}']]
 
 # Take only rows with summary stats for toner bottles
 def selectTonerStats(df):
