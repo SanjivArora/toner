@@ -70,8 +70,8 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     dev_rotation = findFields(
         names,
         ['.*(?<!Previous.Unit).PM.Counter.Rotation.Developer.%s.*',
-         #'.*Drive.Distance.Counter.%s_Developer.*'],
          '.*Display.Distance.Dev.Unit.%s.SP7.942',
+         '.*Drive.Distance.Counter.%s_Developer.*',
         ],
         'Developer.Rotation.%s',
         take_first=True,
@@ -260,7 +260,7 @@ def deriveDevReplacements(df, color='K'):
     prev = df.shift(-1)
     new = df[rotation] < prev[rotation]
     new[-1] = True
-    dates = df.RetrievedDate
+    dates = pd.to_datetime(df.RetrievedDate)
     f = f'Developer.Replacement.Date.Derived.{color}'
     res = dates.to_frame(name=f)
     res[f] = dates.where(new)
