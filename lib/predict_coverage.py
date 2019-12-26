@@ -235,7 +235,7 @@ prediction_latest_toners = None
 prediction_model_hist_map = None
 prediction_fleet_hist_map = None
 @timed
-def makePredictions(df):
+def makePredictions(df, sers=None):
     global prediction_cov_per_toner_map
     global prediction_filtered_data_map
     global prediction_latest_toners
@@ -246,7 +246,10 @@ def makePredictions(df):
     prediction_latest_toners = makeLatestToners(df)
     prediction_model_hist_map = makeModelHistMap(df, prediction_filtered_data_map)
     prediction_fleet_hist_map = makeFleetHistory(prediction_filtered_data_map)
-    by_serial = df.sort_values('RetrievedDate', ascending=False).groupby('Serial')
+    if sers is None:
+        sers = df.Serial.unique()
+    to_predict = df[df.Serial.isin(sers)]
+    by_serial = to_predict.sort_values('RetrievedDate', ascending=False).groupby('Serial')
     with multiprocessing.Pool() as pool:
         res_parts = pool.map(makePredictionsForSerial, by_serial)
     successes = [x for x in res_parts if x is not False]

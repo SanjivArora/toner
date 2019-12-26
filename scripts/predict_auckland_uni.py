@@ -86,7 +86,7 @@ else:
     sers = ser_df[ser_df.PrimaryAcc==primary_account]['SerialNo']
 
 #preds = makePredictions(res)
-preds = makePredictions(res[res.Serial.isin(sers)])
+preds = makePredictions(res, sers)
 
 current = preds[preds['Days.To.Zero.From.Today.Earliest.Expected'] <= 7]
 current = current[current['DataAge'] < 7] 
