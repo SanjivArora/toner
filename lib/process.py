@@ -78,6 +78,7 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
         allow_missing=allow_missing,
     )
     addFields(p, dev_rotation)
+    dev_rotation_names = list(dev_rotation.keys())
 
     # Always allow missing for toner call threshold as this comes in mutually exclusive variants
     toner_call_threshold = findFields(names, '.*Toner.Call.Threshold.SP5.*', 'Toner.Call.Threshold', colors=False, allow_missing=True)
@@ -112,7 +113,7 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
         print("Dev unit rotations:")
         print(dev_rotation)
 
-    return toner_names, cov_names, pages_names, used_bottles_names
+    return toner_names, cov_names, pages_names, used_bottles_names, dev_rotation_names
 
 
 # Use global variables for shared data as workaround for limitations of multiprocessing module
@@ -158,7 +159,7 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
     orig_fields = p.columns
     
     status("Normalizing field names")
-    toner_names, cov_names, pages_names, used_bottles_names = normalizeFields(p, show_fields, allow_missing)
+    toner_names, cov_names, pages_names, used_bottles_names, dev_rotation_names = normalizeFields(p, show_fields, allow_missing)
     colors_matched = [c for c in colors_norm if f'Toner.{c}' in toner_names]
 
     if not colors_matched:
@@ -185,7 +186,7 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
 
     # Add delta and replacements
     times = ['RetrievedDate', 'RetrievedDateTime']
-    to_add = list(toner_names + cov_names + times + pages_names + used_bottles_names)
+    to_add = list(toner_names + cov_names + times + pages_names + used_bottles_names + dev_rotation_names)
     delta_fields = [x+'.delta' for x in to_add]
     time_deltas = [x+'.delta' for x in times]
     replacement_fields = [x+'.replaced' for x in toner_names]
