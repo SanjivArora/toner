@@ -41,19 +41,29 @@ def dropEmpty(xss):
 def filterData(xs):
     return filterInf(filterNeg(filterNaN(xs)))
 
-def calcDist(machine_hist, model_hist, model_n=20, samples=5000):
+def calcDist(machine_hist, model_hist, fleet_hist, model_n=20, samples=5000, min_model_hist=1000):
     # Calculate a proportion of samples to come from the model vs the machine
     # sample from model and machine histories according to the ratio of model_n : len(model_hist)
     # With a model_n value of 40, a machine with 10 days of history will draw 80% of samples from model history and 20% from machine history
+    # If there are fewer than min_model_days machine-days of history available for the model, draw the balance from the fleet history
     model_frac = model_n / (model_n + len(machine_hist))
     
+    # Split model_frac into fleet_frac and model_frac components if there are not enough days of model history
+    fleet_frac = 0
+    if len(model_hist) < min_model_hist:
+        split = (min_model_hist - len(model_hist)) / min_model_hist
+        fleet_frac = model_frac * split
+        model_frac = model_frac * (1 - split)
+
     model_s = int(np.ceil(model_frac * samples))
-    machine_s = samples-model_s
-    #print(model_s, machine_s)
+    fleet_s = int(np.ceil(fleet_frac * samples))
+    machine_s = max(0, samples-model_s-fleet_s)
+    print(model_s, machine_s, fleet_s)
     
     # Sample with replacement
-    model_samples = random.choices(model_hist, k=model_s)
     machine_samples = random.choices(machine_hist, k=machine_s)
+    model_samples = random.choices(model_hist, k=model_s)
+    fleet_samples = random.choices(fleet_hist, k=fleet_s)
     
     return model_samples + machine_samples
 
@@ -116,6 +126,11 @@ def makeModelHistMap(df, filtered_data_map):
         for m in df.Model.unique()
     }
 
+# Generate whole-fleet history {color: coverage}
+def makeFleetHistory(filtered_data_map):
+    # {color: {serial: hist}} -> {color: hist}
+    return {c: [y for x in [hist for hist in filtered_data_map[c].values()] for y in x] for c in colors_norm}
+        
 def getModel(ser):
     return ser[0:3]
 
@@ -128,12 +143,12 @@ def latestToner(df, color='K'):
     by_serial = df.sort_values('RetrievedDate', ascending=False).groupby('Serial')
     return by_serial.apply(lambda x: x[field].bfill().iloc[0])
 
-def estimateDaysToZeroBruteForce(ser, cov_per_toner_map, filtered_data_map, model_hist_map, latest_toners, color='K', cov_percentile=95):
+def estimateDaysToZeroBruteForce(ser, cov_per_toner_map, filtered_data_map, model_hist_map, fleet_hist_map, latest_toners, color='K', cov_percentile=95):
     machine_hist = filtered_data_map[color][ser]
     per_toner = cov_per_toner_map[getModel(ser)][color][ser]
     latest_toner = latest_toners[color][ser]
     assert not pd.isna(latest_toner)
-    cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color])
+    cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color], fleet_hist_map[color])
     cov_remaining_est = latest_toner * per_toner
     for day in range(0, 101):
         cov_predicted = predictCoverageFast(cov_dist, day)
@@ -144,12 +159,12 @@ def estimateDaysToZeroBruteForce(ser, cov_per_toner_map, filtered_data_map, mode
     return day
 
 # Binary search for O(maxdays) -> O(log(maxdays)) speedup
-def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map, latest_toners, color='K', cov_percentile=95, min_val=1, max_val=1000):
+def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map, fleet_hist_map, latest_toners, color='K', cov_percentile=95, min_val=1, max_val=1000):
     machine_hist = filtered_data_map[color][ser]
     per_toner = cov_per_toner_map[getModel(ser)][color][ser]
     latest_toner = latest_toners[color][ser]
     assert not pd.isna(latest_toner)
-    cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color])
+    cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color], fleet_hist_map[color])
     cov_remaining_est = latest_toner * per_toner
     if cov_remaining_est == 0:
         return 0
@@ -177,7 +192,7 @@ def makePredictionsInner(x, c, percentile=95, max_days=1000):
     res.loc[s, 'LatestData'] = data_date
     lag_days = (dt.datetime.today().date() - data_date).days
     res.loc[s, 'DataAge'] = lag_days
-    toner = d[f'Toner.{c}'][0]
+    toner = [f'Toner.{c}'][0]
     assert not pd.isna(toner)
     res.loc[s, f'Toner.Percent'] = toner
     def predict(percentile=percentile, max_val=max_days*2):
@@ -186,6 +201,7 @@ def makePredictionsInner(x, c, percentile=95, max_days=1000):
             prediction_cov_per_toner_map,
             prediction_filtered_data_map,
             prediction_model_hist_map,
+            prediction_fleet_hist_map,
             prediction_latest_toners,
             color=c,
             cov_percentile=percentile,
@@ -217,16 +233,19 @@ prediction_cov_per_toner_map = None
 prediction_filtered_data_map = None
 prediction_latest_toners = None
 prediction_model_hist_map = None
+prediction_fleet_hist_map = None
 @timed
 def makePredictions(df):
     global prediction_cov_per_toner_map
     global prediction_filtered_data_map
     global prediction_latest_toners
     global prediction_model_hist_map
+    global prediction_fleet_hist_map
     prediction_cov_per_toner_map = makeCoveragePerTonerMap(df)
     prediction_filtered_data_map = makeFilteredDataMap(df)
     prediction_latest_toners = makeLatestToners(df)
     prediction_model_hist_map = makeModelHistMap(df, prediction_filtered_data_map)
+    prediction_fleet_hist_map = makeFleetHistory(prediction_filtered_data_map)
     by_serial = df.sort_values('RetrievedDate', ascending=False).groupby('Serial')
     with multiprocessing.Pool() as pool:
         res_parts = pool.map(makePredictionsForSerial, by_serial)
