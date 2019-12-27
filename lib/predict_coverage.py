@@ -58,7 +58,7 @@ def calcDist(machine_hist, model_hist, fleet_hist, model_n=20, samples=5000, min
     model_s = int(np.ceil(model_frac * samples))
     fleet_s = int(np.ceil(fleet_frac * samples))
     machine_s = max(0, samples-model_s-fleet_s)
-    print(model_s, machine_s, fleet_s)
+    #print(model_s, machine_s, fleet_s)
     
     # Sample with replacement
     machine_samples = random.choices(machine_hist, k=machine_s)
@@ -84,31 +84,41 @@ def predictCoverageFast(dist, days, n=100000):
 
 def latestProjection(df, color='K'):
     field = f'Coverage.Per.Toner.{color}'
-    by_serial = df.sort_values('RetrievedDate', ascending=False).groupby('Serial')
+    by_serial = df[['Serial', 'RetrievedDate', field]].sort_values('RetrievedDate', ascending=False).groupby('Serial')
     return by_serial.apply(lambda x: x[field].bfill().iloc[0])
 
-def imputedCoveragePerToner(df, color='K'):
-    field = f'Coverage.Per.Toner.{color}'
-    # If we don't have a measured coverage per toner, use the 20th percentile of the latest values for the group
-    xs = latestProjection(df, color)
-    valid = xs.dropna()
-    if len(valid):
-        imputed = np.percentile(xs.dropna(), 20)
-    else:
-        imputed = np.nan
-    xs = xs.fillna(imputed)
+def imputedCoveragePerToner(fleet_df, model_df, color='K'):
+    def inner(xs, ys):
+        valid = xs.dropna()
+        if len(valid):
+            imputed = np.percentile(ys.dropna(), 20)
+        else:
+            imputed = np.nan
+        xs = xs.fillna(imputed)
+        return xs
+    # If we don't have a measured coverage per toner, use the 20th percentile of the latest values for the model
+    xs = latestProjection(model_df, color)
+    xs = inner(xs, xs)
+    # If this failed, use the 20th percentile of the latest values for the fleet
+    ys = latestProjection(fleet_df, color)
+    xs = inner(xs, ys)
     return xs
     
-def makeCoveragePerTonerMap(df):
+def makeCoveragePerTonerMapInner(x):
+    model, model_df = x
+    return (model, {c: imputedCoveragePerToner(prediction_df, model_df, c) for c in colors_norm})
+
+@timed
+def makeCoveragePerTonerMap():
     # Build this per model as we need to impute missing values with data from peer machines
     # {model: {color: imputed_cov_per_toner}}
-    cov_per_toner_map = {
-        m: {c: imputedCoveragePerToner(m_df, c) for c in colors_norm}
-        for m, m_df in df.groupby('Model')
-    }
-    return cov_per_toner_map
+    by_model = prediction_df.groupby('Model')
+    with multiprocessing.Pool() as pool:
+        res_parts = pool.map(makeCoveragePerTonerMapInner, by_model, chunksize=1)
+    return dict(res_parts)
 
 # {color: {serial: data}}
+@timed
 def makeFilteredDataMap(df):
     by_serial = df.sort_values('RetrievedDate', ascending=False).groupby('Serial')
     res = {}
@@ -127,6 +137,7 @@ def makeModelHistMap(df, filtered_data_map):
     }
 
 # Generate whole-fleet history {color: coverage}
+@timed
 def makeFleetHistory(filtered_data_map):
     # {color: {serial: hist}} -> {color: hist}
     return {c: [y for x in [hist for hist in filtered_data_map[c].values()] for y in x] for c in colors_norm}
@@ -192,7 +203,7 @@ def makePredictionsInner(x, c, percentile=95, max_days=1000):
     res.loc[s, 'LatestData'] = data_date
     lag_days = (dt.datetime.today().date() - data_date).days
     res.loc[s, 'DataAge'] = lag_days
-    toner = [f'Toner.{c}'][0]
+    toner = d[f'Toner.{c}'][0]
     assert not pd.isna(toner)
     res.loc[s, f'Toner.Percent'] = toner
     def predict(percentile=percentile, max_val=max_days*2):
@@ -229,19 +240,23 @@ def makePredictionsForSerial(x, percentile=95):
 
 # Use global variables for shared data as workaround for limitations of multiprocessing module
 # Note that this means that makePredictions() is not thread-safe.
+prediction_df = None
 prediction_cov_per_toner_map = None
 prediction_filtered_data_map = None
 prediction_latest_toners = None
 prediction_model_hist_map = None
 prediction_fleet_hist_map = None
+
 @timed
 def makePredictions(df, sers=None):
+    global prediction_df
     global prediction_cov_per_toner_map
     global prediction_filtered_data_map
     global prediction_latest_toners
     global prediction_model_hist_map
     global prediction_fleet_hist_map
-    prediction_cov_per_toner_map = makeCoveragePerTonerMap(df)
+    prediction_df = df
+    prediction_cov_per_toner_map = makeCoveragePerTonerMap()
     prediction_filtered_data_map = makeFilteredDataMap(df)
     prediction_latest_toners = makeLatestToners(df)
     prediction_model_hist_map = makeModelHistMap(df, prediction_filtered_data_map)
@@ -251,7 +266,7 @@ def makePredictions(df, sers=None):
     to_predict = df[df.Serial.isin(sers)]
     by_serial = to_predict.sort_values('RetrievedDate', ascending=False).groupby('Serial')
     with multiprocessing.Pool() as pool:
-        res_parts = pool.map(makePredictionsForSerial, by_serial)
+        res_parts = pool.map(makePredictionsForSerial, by_serial, chunksize=1)
     successes = [x for x in res_parts if x is not False]
     print(f"{len(successes)} serials successfully processed, {len(res_parts)-len(successes)} failures")
     return pd.concat(successes)
