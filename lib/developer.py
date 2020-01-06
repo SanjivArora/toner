@@ -91,7 +91,7 @@ def recentDevReplacement(df, color, weeks=26):
     recent_idx = df[f] > dt.datetime.today().date() - dt.timedelta(weeks=weeks)
     return df[recent_idx].Serial.unique()
     
-def plotDevLifeCycle(df, color, model=None, log=True, sers=None, only_current=False, min_replacements=3):
+def plotDevLifeCycle(df, color, model=None, log=True, sers=None, only_current=False, min_replacements=3, each_dev=False):
     if model:
         df = df[df.Model==model]
     #sers = currentBadDevs(df, color, df)
@@ -99,9 +99,9 @@ def plotDevLifeCycle(df, color, model=None, log=True, sers=None, only_current=Fa
     # Find serials with dev replacements
     if sers is None:
         if only_current:
-            sers = df.Serial.unique()
-        else:
             sers = recentDevReplacement(df, color)
+        else:
+            sers = df.Serial.unique()
     df = df[df.Serial.isin(sers)]
 
     # TODO: find more efficient approach
@@ -112,9 +112,12 @@ def plotDevLifeCycle(df, color, model=None, log=True, sers=None, only_current=Fa
         df_latest_list=[x.head().reset_index() for x in ser_to_df.tolist()] 
         df = pd.concat(df_latest_list)
     
-    by_serial = df.groupby('Serial')
+    groups = ['Serial']
+    if each_dev:
+        groups.append(f'Developer.Replacement.Date.{color}')
+    by_serial = df.groupby(groups)
     traces = []
-    for ser, df1 in by_serial:
+    for gk, df1 in by_serial:
         # Only graph machines with history for several toner replacements 
         if df1[f'Toner.{color}.replaced'].sum() < min_replacements:
            continue
@@ -122,9 +125,9 @@ def plotDevLifeCycle(df, color, model=None, log=True, sers=None, only_current=Fa
         ydata = data[f'Toner.Usage.Ratio.{color}']
         if log:
             ydata = np.log(ydata)
-        traces.append(go.Scatter(x=data[f'Developer.Rotation.{color}'], y=ydata, name=ser, opacity=0.3))
+        traces.append(go.Scatter(x=data[f'Developer.Rotation.{color}'], y=ydata, name=str(gk), opacity=0.3))
     if traces:
-        title = f'Def Lifecycle - {model or ""} {color}'
+        title = f'Dev Lifecycle - {model or ""} {color}'
         ylabel = 'Toner Usage vs Normal'
         if log:
             ylabel += " (log)"
@@ -141,6 +144,29 @@ def plotDevLifeCycle(df, color, model=None, log=True, sers=None, only_current=Fa
         fig.layout.update(showlegend=True)
         iplot(fig)
 
+# Box plot of toner usage ratios by yield bin
+def plotDevBox(df, c='K', size=5, ymax=5, xmax=120, marker_color='darkblue'):
+    traces=[]
+    for x in range(0,int(xmax/size)):
+        min=x*size
+        max=min+size
+        idxs=(df[f'Developer.Rotation.{c}']<max) & (df[f'Developer.Rotation.{c}']>min)
+        d = df[idxs]
+        d = d.groupby(['Serial', f'Developer.Replacement.Date.{c}'])
+        effs = d[f'Toner.Usage.Ratio.{c}'].mean()
+        m = effs.mean()
+        #print(d.ngroups, m)
+        traces.append(go.Box(y=effs, name=str(min), boxmean=True, marker_color=marker_color) )
+
+    layout = go.Layout(
+        title = f"Developer toner usage ratio - {c}",
+        yaxis=dict(range=[0, ymax]),
+        showlegend=False,
+        xaxis_title='Yield (Percent)',
+        yaxis_title='Toner Per Coverage (vs model median)'
+    )
+    fig = go.Figure(data=traces, layout=layout)
+    iplot(fig)
 
 
 #def plotRates(summary):
