@@ -38,6 +38,8 @@ def plotAtRemoteLatency(df, max_days=7, days_history=None):
     fig.update_layout(
         title='RNZ F@lcon Data Internal Latency',
         #xaxis_nticks=36
+        xaxis_title = 'Date',
+        yaxis_title = 'Days Latency',
     )
     fig.show()
 
