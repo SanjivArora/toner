@@ -33,8 +33,8 @@ def writeFeatherFileToS3(s3_url, df):
     df.to_feather(f)
     f.seek(0)
     
-    s3 = boto3.resource('s3')
-    s3.Object(bucket_name, key_name).put(Body=f)
+    s3_client = boto3.client('s3')
+    s3_client.upload_fileobj(f, bucket_name, key_name)
     
 def writeCSVFileToS3(s3_url, df, index=False):
     assert s3_url.startswith("s3://")
@@ -42,8 +42,8 @@ def writeCSVFileToS3(s3_url, df, index=False):
     
     contents = df.to_csv(index=index)
     
-    s3 = boto3.resource('s3')
-    s3.Object(bucket_name, key_name).put(Body=contents)
+    s3_client = boto3.client('s3')
+    s3_client.upload_fileobj(contents, bucket_name, key_name)
     
 def readFromS3(s3_url):
     print(f"Reading feather file from {s3_url}")
