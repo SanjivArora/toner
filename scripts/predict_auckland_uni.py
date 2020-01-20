@@ -83,7 +83,9 @@ if predict_all:
     sers = res.Serial.unique()
 else:
     ser_df = pd.read_csv('s3://ricoh-prediction-misc/mif/current/customer.csv')
-    sers = ser_df[ser_df.PrimaryAcc==primary_account]['SerialNo']
+    # Types from CSV MIF data are unreliable, forcing string representation works for the purposes of this script
+    ser_df.PrimaryAcc = ser_df.PrimaryAcc.astype('str')
+    sers = ser_df[ser_df.PrimaryAcc==str(primary_account)]['SerialNo']
 
 #preds = makePredictions(res)
 preds = makePredictions(res, sers)
