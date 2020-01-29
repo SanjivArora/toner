@@ -135,3 +135,8 @@ def getTonerRatio(df, color):
         f = f'Toner.Usage.Ratio.{color}'
         res.loc[df.Model==model, f] = med / df.loc[df.Model==model, cov]
     return res
+
+def selectProd(df):
+    model_str = df.Model.replace(np.nan, '').str
+    df = df[model_str.startswith('PRO') | model_str.startswith('C651EX') | model_str.startswith('C751EX')]
+    return df
