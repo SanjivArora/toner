@@ -137,6 +137,34 @@ def getTonerRatio(df, color):
     return res
 
 def selectProd(df):
-    model_str = df.Model.replace(np.nan, '').str
-    df = df[model_str.startswith('PRO') | model_str.startswith('C651EX') | model_str.startswith('C751EX')]
+    models = [
+        '369',
+        '501',
+        '502',
+        'C08',
+        'C09',
+        'C0B',
+        'C45',
+        'C87',
+        'E25',
+        'E26',
+        'E81',
+        'E82',
+        'G34',
+        'G36',
+        'G37',
+        'S97',
+        'T01',
+        'T49',
+        'V51',
+        'V90',
+        'V91',
+        'V99',
+        'X24',
+        'X44',
+        'X61',
+        'Y98',
+        'Y99',
+    ]
+    df = df[df.Model.isin(models)]
     return df
