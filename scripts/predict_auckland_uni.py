@@ -77,7 +77,7 @@ model_paths = dict([x[0], x[3]] for x in cs)
 if models:
     model_paths = {m:p for m, p in model_paths.items() if m in models}
 
-res = buildDataset(model_paths.values(), kwargs={'allow_missing':True, 'nz_only':True}, num_procs=build_dataset_procs)
+res = buildDataset(model_paths.values(), kwargs={'allow_missing':True}, num_procs=build_dataset_procs)
 
 if predict_all:
     sers = res.Serial.unique()
