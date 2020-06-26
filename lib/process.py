@@ -135,7 +135,7 @@ def applyColorSet(f, colors):
         res = pd.concat([res, part], axis=1, sort=False)
     return res
 
-def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True, nz_only=False):
+def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True, nz_only=False, in_bucket=None):
     global process_df
 
     start_time = time.time()
@@ -289,7 +289,8 @@ def selectTonerStats(df):
 def doProcessing(args, summary_rows_only=False):
     path, kwargs = args
     try:
-        res = processFile(f"s3://{in_bucket_name}/{path}", **kwargs)
+        bucket_name = kwargs.get('in_bucket', in_bucket_name)
+        res = processFile(f"s3://{bucket_name}/{path}", **kwargs)
         if summary_rows_only:
             res = selectTonerStats(res)
     except:
