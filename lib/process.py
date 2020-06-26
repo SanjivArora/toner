@@ -135,7 +135,7 @@ def applyColorSet(f, colors):
         res = pd.concat([res, part], axis=1, sort=False)
     return res
 
-def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True, nz_only=False, in_bucket=None):
+def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True, nz_only=False, in_bucket=None, skip_processing=False):
     global process_df
 
     start_time = time.time()
@@ -155,6 +155,9 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
     # TODO: implement by checking if serial is in the regional MRP file rather than using exported NZ DB content (this should be general as well as more current)
     if nz_only:
         p = p[p.Serial.isin(process_nz_sers)]
+
+    if skip_processing:
+        return p
 
     orig_fields = p.columns
     
