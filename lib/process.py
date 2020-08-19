@@ -318,7 +318,9 @@ class NonDaemonPool(multiprocessing.pool.Pool):
 process_nz_sers = None
 
 @timed
-def buildDataset(to_use, kwargs={}, num_procs=int(np.ceil(multiprocessing.cpu_count() / 2)), f=doProcessing):
+def buildDataset(to_use, kwargs={}, num_procs=None, f=doProcessing):
+    if num_procs is None:
+        num_proces = int(np.ceil(multiprocessing.cpu_count() / 2)),
     global process_nz_sers
     ser_df = pd.read_csv('s3://ricoh-prediction-misc/mif/current/customer.csv')
     process_nz_sers = ser_df.SerialNo
