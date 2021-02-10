@@ -190,7 +190,6 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
     # Add delta and replacements
     times = ['RetrievedDate', 'RetrievedDateTime']
     to_add = list(toner_names + cov_names + times + pages_names + used_bottles_names + dev_rotation_names)
-    delta_fields = [x+'.delta' for x in to_add]
     time_deltas = [x+'.delta' for x in times]
     replacement_fields = [x+'.replaced' for x in toner_names]
 
