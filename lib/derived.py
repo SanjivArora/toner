@@ -20,10 +20,13 @@ def addRates(df, names):
         # Use tolist() to ignore index
         df[name+".rate"] = coldata.tolist()
         
-def addReplacements(df, names):
+def addReplacements(df, names, negative=False):
     by_machine=df.groupby('Serial', group_keys=False)
     for name in names:
-        res = by_machine.apply(lambda x: x[name+'.delta']>0)
+        if negative:
+            res = by_machine.apply(lambda x: x[name+'.delta']<0)
+        else:
+            res = by_machine.apply(lambda x: x[name+'.delta']>0)
         df[name+".replaced"] = res
         
 def addSumRate(df, names):

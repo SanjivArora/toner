@@ -51,6 +51,10 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     for f in dev_replacement.keys():
         p[f] = pd.to_datetime(p[f], format='%y%m%d', errors='coerce')
 
+    pcus = findFields(names, '.*Estimated.Usage.Rate.PCU.%s', 'PCU.Yield.%s', allow_missing=allow_missing)
+    addFields(p, pcus)
+    pcus_names = list(pcus.keys())
+
     total_pages = findFields(names, '.*Total.Total.PrtPGS.SP8.*', 'Pages', colors=False, allow_missing=allow_missing)
     addFields(p, total_pages)
     pages_names = list(total_pages.keys())
@@ -112,8 +116,10 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
         print(used_bottles)
         print("Dev unit rotations:")
         print(dev_rotation)
+        print("PCUs:")
+        print(pcus)
 
-    return toner_names, cov_names, pages_names, used_bottles_names, dev_rotation_names
+    return toner_names, cov_names, pages_names, used_bottles_names, dev_rotation_names, pcus_names
 
 
 # Use global variables for shared data as workaround for limitations of multiprocessing module
@@ -162,7 +168,7 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
     orig_fields = p.columns
     
     status("Normalizing field names")
-    toner_names, cov_names, pages_names, used_bottles_names, dev_rotation_names = normalizeFields(p, show_fields, allow_missing)
+    toner_names, cov_names, pages_names, used_bottles_names, dev_rotation_names, pcus_names = normalizeFields(p, show_fields, allow_missing)
     colors_matched = [c for c in colors_norm if f'Toner.{c}' in toner_names]
 
     if not colors_matched:
@@ -189,9 +195,8 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
 
     # Add delta and replacements
     times = ['RetrievedDate', 'RetrievedDateTime']
-    to_add = list(toner_names + cov_names + times + pages_names + used_bottles_names + dev_rotation_names)
+    to_add = list(toner_names + cov_names + times + pages_names + used_bottles_names + dev_rotation_names + pcus_names)
     time_deltas = [x+'.delta' for x in times]
-    replacement_fields = [x+'.replaced' for x in toner_names]
 
     status(f"Adding deltas, rates and replacement fields for {s3_url}")
     addDeltas(p, to_add)
@@ -201,6 +206,8 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
     p['RetrievedDateTime.delta.days']=p['RetrievedDateTime.delta'] / datetime.timedelta(days=1)
     addRates(p, to_add)
     addReplacements(p, toner_names)
+    # Toner counts down passage of time, PCUs count up - so a negative delta indicates a replacement
+    addReplacements(p, pcus_names, negative=True)
     
     process_df = sortReadings(p)
         
