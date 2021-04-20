@@ -73,7 +73,7 @@ def predictCoverage(dist, days, n=1000):
     d = [np.sum(random.choices(dist, k=days)) for i in range(n)]
     return np.array(d)
 
-# Use a rolling sum for fast approxiate calculation
+# Use a rolling sum for fast approximate calculation
 def predictCoverageFast(dist, days, n=100000):
     if days==0:
         return [0]

@@ -219,6 +219,9 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
 
         status("Adding toner bottle indices")
         apply(indexToner)
+
+        status("Adding PCU indices")
+        apply(indexPCU)
             
         status("Adding final page count for current toner")
         apply(getTonerPages)
@@ -260,6 +263,17 @@ def indexToner(df, color='K'):
     new = new_ser | df[f'Toner.{color}.replaced']
     new_labels = df.index
     f = f'TonerIndex.{color}'
+    res = new_labels.to_frame(name=f)
+    res[f] = new_labels.where(new)
+    res[f] = res[f].fillna(method='bfill')
+    return res
+
+def indexPCU(df, color='K'):
+    prev = df.shift(-1)
+    new_ser = df.Serial != prev.Serial
+    new = new_ser | df[f'PCU.Yield.{color}.replaced']
+    new_labels = df.index
+    f = f'PCUIndex.{color}'
     res = new_labels.to_frame(name=f)
     res[f] = new_labels.where(new)
     res[f] = res[f].fillna(method='bfill')
