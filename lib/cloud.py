@@ -40,10 +40,13 @@ def writeCSVFileToS3(s3_url, df, index=False):
     assert s3_url.startswith("s3://")
     bucket_name, key_name = s3_url[5:].split("/", 1)
     
-    contents = df.to_csv(index=index)
+    contents = io.StringIO()
+    df.to_csv(contents, index=index)
+    contents.seek(0)
+    f = io.BytesIO(contents.getvalue().encode())
     
     s3_client = boto3.client('s3')
-    s3_client.upload_fileobj(contents, bucket_name, key_name)
+    s3_client.upload_fileobj(f, bucket_name, key_name)
     
 def readFromS3(s3_url):
     print(f"Reading feather file from {s3_url}")

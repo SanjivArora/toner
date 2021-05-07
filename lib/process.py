@@ -67,6 +67,11 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     addFields(p, print_bw_pages)
     pages_names += list(print_bw_pages.keys())
 
+    # Include jobs with pages as same requirements and semantically similar
+    total_jobs = findFields(names, '.*Total.Total.Jobs.SP8.*', 'Jobs', colors=False, allow_missing=allow_missing)
+    addFields(p, total_jobs)
+    pages_names = list(total_jobs.keys())
+
     used_bottles = findFields(names, '.*used.cartridge.Total.%s', 'Toner.Bottles.Total.%s', allow_missing=allow_missing)
     addFields(p, used_bottles)
     used_bottles_names = list(used_bottles.keys())
@@ -141,7 +146,7 @@ def applyColorSet(f, colors):
         res = pd.concat([res, part], axis=1, sort=False)
     return res
 
-def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True, nz_only=False, in_bucket=None, skip_processing=False):
+def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False, toner_stats=True, nz_only=False, in_bucket=None, skip_processing=False, require_color_match=True):
     global process_df
 
     start_time = time.time()
@@ -171,7 +176,7 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
     toner_names, cov_names, pages_names, used_bottles_names, dev_rotation_names, pcus_names = normalizeFields(p, show_fields, allow_missing)
     colors_matched = [c for c in colors_norm if f'Toner.{c}' in toner_names]
 
-    if not colors_matched:
+    if require_color_match and not colors_matched:
         raise Exception(f"No colors matched for {s3_url}")
 
     if not keep_orig:
@@ -211,7 +216,7 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
     
     process_df = sortReadings(p)
         
-    if toner_stats:
+    if colors_matched and toner_stats:
         def apply(f):
             global process_df
             res = applyColorSet(f, colors_matched)
