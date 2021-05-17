@@ -245,7 +245,7 @@ def makePredictionsInner(x, c, percentile=95, max_days=1000, f=estimateDaysToZer
     return res
 
 @timed
-def makePredictionsForSerial(x, method='closed', percentile=95):
+def makePredictionsForSerial(x, method='binary', percentile=95):
     # Closed form approximation
     if method=='closed':
         f=estimateDaysToZeroClosedForm
@@ -280,7 +280,7 @@ prediction_model_hist_map = None
 prediction_fleet_hist_map = None
 
 @timed
-def makePredictions(df, sers=None, method='closed', percentile=95):
+def makePredictions(df, sers=None, method='binary', percentile=95):
     global prediction_df
     global prediction_cov_per_toner_map
     global prediction_filtered_data_map
