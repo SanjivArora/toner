@@ -171,3 +171,6 @@ def selectProd(df):
     ]
     df = df[df.Model.isin(models)]
     return df
+
+def selectNonProd(df):
+    return df[~df.Model.isin(selectProd(df).Model)]

@@ -3,12 +3,14 @@ import io
 import datetime
 import itertools
 import traceback
+import math
 from pprint import pprint
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 import pandas as pd
+import scipy
 import boto3
 import plotly
 import plotly.graph_objs as go
@@ -20,6 +22,7 @@ from .developer import *
 from .process import *
 from .names import colors_norm
 from .common import timed
+from .predict_closed import find_d
 
 
 def filterNaN(xs):
@@ -154,6 +157,7 @@ def latestToner(df, color='K'):
     by_serial = df.sort_values('RetrievedDate', ascending=False).groupby('Serial')
     return by_serial.apply(lambda x: x[field].bfill().iloc[0])
 
+# Find earliest day a monte carlo simulation indicates nth percentile cumulative coverage will result in toner out
 def estimateDaysToZeroBruteForce(ser, cov_per_toner_map, filtered_data_map, model_hist_map, fleet_hist_map, latest_toners, color='K', cov_percentile=95):
     machine_hist = filtered_data_map[color][ser]
     per_toner = cov_per_toner_map[getModel(ser)][color][ser]
@@ -193,7 +197,24 @@ def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map
             return inner(min_v=test, max_v=max_v)
     return inner(min_val, max_val)
 
-def makePredictionsInner(x, c, percentile=95, max_days=1000):
+# Closed form approximation to estimate days to zero
+def estimateDaysToZeroClosedForm(ser, cov_per_toner_map, filtered_data_map, model_hist_map, fleet_hist_map, latest_toners, color='K', cov_percentile=95, min_val=1, max_val=1000):
+    machine_hist = filtered_data_map[color][ser]
+    per_toner = cov_per_toner_map[getModel(ser)][color][ser]
+    latest_toner = latest_toners[color][ser]
+    assert not pd.isna(latest_toner)
+    cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color], fleet_hist_map[color])
+    cov_remaining_est = latest_toner * per_toner
+    if cov_remaining_est == 0:
+        return 0
+    mu=np.mean(cov_dist)
+    sigma=np.std(cov_dist)
+    gamma=scipy.stats.skew(cov_dist)
+    kappa=scipy.stats.kurtosis(cov_dist)
+    return find_d(1-(cov_percentile/100), cov_remaining_est, mu, sigma, gamma, kappa, max_days=max_val)
+
+
+def makePredictionsInner(x, c, percentile=95, max_days=1000, f=estimateDaysToZeroClosedForm):
     (s, d) = x
     res=pd.DataFrame()
     print(f"Predicting {s} {c}")
@@ -207,7 +228,7 @@ def makePredictionsInner(x, c, percentile=95, max_days=1000):
     assert not pd.isna(toner)
     res.loc[s, f'Toner.Percent'] = toner
     def predict(percentile=percentile, max_val=max_days*2):
-        return estimateDaysToZero(
+        return f(
             s,
             prediction_cov_per_toner_map,
             prediction_filtered_data_map,
@@ -224,11 +245,22 @@ def makePredictionsInner(x, c, percentile=95, max_days=1000):
     return res
 
 @timed
-def makePredictionsForSerial(x, percentile=95):
+def makePredictionsForSerial(x, method='closed', percentile=95):
+    # Closed form approximation
+    if method=='closed':
+        f=estimateDaysToZeroClosedForm
+    # Binary search with monte carlo simulation
+    elif method=='binary':
+        f=estimateDaysToZero
+    # Brute force search with monte carlo simulation
+    elif method=='brute':
+        f=estimateDaysToZeroBruteForce
+    else:
+        raise(Exception(f'Unknown method: {method}'))
     parts = []
     for c in colors_norm:
         try:
-            part = makePredictionsInner(x, c, percentile)
+            part = makePredictionsInner(x, c, percentile, f=f)
             parts.append(part)
         except:
             print(f"Exception processing {c} for {x[0]}")
@@ -248,7 +280,7 @@ prediction_model_hist_map = None
 prediction_fleet_hist_map = None
 
 @timed
-def makePredictions(df, sers=None):
+def makePredictions(df, sers=None, method='closed', percentile=95):
     global prediction_df
     global prediction_cov_per_toner_map
     global prediction_filtered_data_map
@@ -266,7 +298,8 @@ def makePredictions(df, sers=None):
     to_predict = df[df.Serial.isin(sers)]
     by_serial = to_predict.sort_values('RetrievedDate', ascending=False).groupby('Serial')
     with multiprocessing.Pool() as pool:
-        res_parts = pool.map(makePredictionsForSerial, by_serial, chunksize=1)
+        args = [(x, method, percentile) for x in by_serial]
+        res_parts = pool.starmap(makePredictionsForSerial, args, chunksize=1)
     successes = [x for x in res_parts if x is not False]
     print(f"{len(successes)} serials successfully processed, {len(res_parts)-len(successes)} failures")
     return pd.concat(successes)
