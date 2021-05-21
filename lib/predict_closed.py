@@ -28,11 +28,6 @@ def phi_d(d, x, mu, sigma, gamma, kappa):
            - 1 / d**2 \
            + (1 - 1/d**2) * norm.cdf((x - mu) * math.sqrt(d) / sigma)
     
-# Find target value for percentage chance of running out of toner
-def target_for_alpha(alpha=0.05):
-    norm=scipy.stats.norm(0,1)
-    return norm.ppf(1-alpha)
-    
 def find_d(alpha, R, mu, sigma, gamma=0, kappa=3, max_days=1000):
     target = 1 - alpha 
     for d in range(1,max_days):
