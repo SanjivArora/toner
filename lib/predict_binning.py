@@ -62,7 +62,6 @@ def sumHistRvs(h1, h2, bins=100, remove_negligible_outliers=True, negligible_thr
     return np.histogram(xs, weights=ws, bins=bins, density=True)
 
 # Return histogram of sums of <days>-length sequences from random variable with distribution represented by numpy histogram h
-# The histogram given should be static, cached results will be incorrect if this is not respected.
 @npCacheMap(maxsize=1024)
 #@timed
 def hSampleSum(h, days, bins=32):

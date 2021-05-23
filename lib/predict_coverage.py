@@ -199,13 +199,14 @@ def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map
     return inner(min_val, max_val)
 
 # Binary search for O(maxdays) -> O(log(maxdays)) speedup, use binning approximation to calculate distribution of sample sums
-def estimateDaysToZeroBinned(ser, cov_per_toner_map, filtered_data_map, model_hist_map, fleet_hist_map, latest_toners, color='K', cov_percentile=95, min_val=1, max_val=1000, bins=100):
+def estimateDaysToZeroBinned(ser, cov_per_toner_map, filtered_data_map, model_hist_map, fleet_hist_map, latest_toners, color='K', cov_percentile=95, min_val=1, max_val=1000, bins=32):
     machine_hist = filtered_data_map[color][ser]
     per_toner = cov_per_toner_map[getModel(ser)][color][ser]
     latest_toner = latest_toners[color][ser]
     assert not pd.isna(latest_toner)
     cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color], fleet_hist_map[color])
-    h = np.histogram(cov_dist, bins=bins)
+    # Allow some additional bins for the base histogram as this is where we most benefit from detail
+    h = np.histogram(cov_dist, bins=bins*2)
     cov_remaining_est = latest_toner * per_toner
     if cov_remaining_est == 0:
         return 0
@@ -214,7 +215,7 @@ def estimateDaysToZeroBinned(ser, cov_per_toner_map, filtered_data_map, model_hi
             return min_v
         test = (min_v+max_v) / 2
         test = int(test)
-        hsum = hSampleSum(h, test)
+        hsum = hSampleSum(h, test, bins=bins)
         cov = histPercentile(hsum, cov_percentile)
         #print(f"{ser}:{test}:{int(cov_remaining_est)}:{int(cov)}")
         if cov >= cov_remaining_est:
@@ -270,7 +271,7 @@ def makePredictionsInner(x, c, percentile=95, max_days=1000, f=estimateDaysToZer
     return res
 
 @timed
-def makePredictionsForSerial(x, method='binary_binned', percentile=95):
+def makePredictionsForSerial(x, method='binary', percentile=95):
     # Binary search with binning approximation
     if method=='binary_binned':
         f=estimateDaysToZeroBinned
@@ -308,7 +309,7 @@ prediction_model_hist_map = None
 prediction_fleet_hist_map = None
 
 @timed
-def makePredictions(df, sers=None, method='binary_binned', percentile=95):
+def makePredictions(df, sers=None, method='binary', percentile=95):
     global prediction_df
     global prediction_cov_per_toner_map
     global prediction_filtered_data_map
