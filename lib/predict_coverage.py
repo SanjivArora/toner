@@ -182,6 +182,9 @@ def estimateDaysToZero(ser, cov_per_toner_map, filtered_data_map, model_hist_map
     assert not pd.isna(latest_toner)
     cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color], fleet_hist_map[color])
     cov_remaining_est = latest_toner * per_toner
+    return _estimateDaysToZero(cov_dist, cov_percentile, cov_remaining_est, min_val, max_val)
+
+def _estimateDaysToZero(cov_dist, cov_percentile, cov_remaining_est, min_val, max_val):
     if cov_remaining_est == 0:
         return 0
     def inner(min_v, max_v):
@@ -223,6 +226,40 @@ def estimateDaysToZeroBinned(ser, cov_per_toner_map, filtered_data_map, model_hi
         else:
             return inner(min_v=test, max_v=max_v)
     return inner(min_val, max_val)
+
+# Test if a closed form approximation exploiting the central limit theorem will work. If not, use estimateDaysToZero
+def estimateDaysToZeroHybrid(ser, cov_per_toner_map, filtered_data_map, model_hist_map, fleet_hist_map, latest_toners, color='K', cov_percentile=95, min_val=1, max_val=1000, bins=32, threshold_days=16):
+    machine_hist = filtered_data_map[color][ser]
+    per_toner = cov_per_toner_map[getModel(ser)][color][ser]
+    latest_toner = latest_toners[color][ser]
+    assert not pd.isna(latest_toner)
+    cov_dist = calcDist(machine_hist, model_hist_map[getModel(ser)][color], fleet_hist_map[color])
+    cov_remaining_est = latest_toner * per_toner
+    assert(min_val < threshold_days)
+    if cov_remaining_est == 0:
+        return 0
+
+    #@timed
+    def _closed_estimate():
+            # Use fast central limit approximation, binary search would be faster still but this isn't a bottleneck
+            base_mean = np.mean(cov_dist)
+            base_std = np.std(cov_dist)
+            for d in range(threshold_days, max_val+1):
+                mu = base_mean*d
+                sigma = base_std/np.sqrt(d)
+                val = scipy.stats.norm.ppf(cov_percentile/100, mu, sigma)
+                if val >= cov_remaining_est:
+                    break
+            return d
+
+    # Monte carlo sampling for one day to test if we can use a closed form solution
+    cov_predicted_dist = predictCoverageFast(cov_dist, threshold_days)
+    cov_predicted = np.percentile(cov_predicted_dist, cov_percentile)
+    if cov_remaining_est > cov_predicted:
+        return _closed_estimate()
+    # Otherwise use computational approximation approximation
+    else:
+        return _estimateDaysToZero(cov_dist, cov_percentile, cov_remaining_est, min_val, max_val)
 
 # Closed form approximation to estimate days to zero
 def estimateDaysToZeroClosedForm(ser, cov_per_toner_map, filtered_data_map, model_hist_map, fleet_hist_map, latest_toners, color='K', cov_percentile=95, min_val=1, max_val=1000):
@@ -271,9 +308,11 @@ def makePredictionsInner(x, c, percentile=95, max_days=1000, f=estimateDaysToZer
     return res
 
 @timed
-def makePredictionsForSerial(x, method='binary', percentile=95):
+def makePredictionsForSerial(x, method='hybrid', percentile=95):
     # Binary search with binning approximation
-    if method=='binary_binned':
+    if method=='hybrid':
+        f=estimateDaysToZeroHybrid
+    elif method=='binary_binned':
         f=estimateDaysToZeroBinned
     # Closed form approximation
     elif method=='closed':
@@ -309,7 +348,7 @@ prediction_model_hist_map = None
 prediction_fleet_hist_map = None
 
 @timed
-def makePredictions(df, sers=None, method='binary', percentile=95):
+def makePredictions(df, sers=None, method='hybrid', percentile=95):
     global prediction_df
     global prediction_cov_per_toner_map
     global prediction_filtered_data_map
