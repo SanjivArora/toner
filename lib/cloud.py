@@ -47,6 +47,17 @@ def writeCSVFileToS3(s3_url, df, index=False):
     
     s3_client = boto3.client('s3')
     s3_client.upload_fileobj(f, bucket_name, key_name)
+
+def writeBytesToS3(s3_url, b):
+    assert s3_url.startswith("s3://")
+    bucket_name, key_name = s3_url[5:].split("/", 1)
+    
+    f = io.BytesIO()
+    f.write(b)
+    f.seek(0)
+    
+    s3_client = boto3.client('s3')
+    s3_client.upload_fileobj(f, bucket_name, key_name)
     
 def readFromS3(s3_url):
     print(f"Reading feather file from {s3_url}")
@@ -70,6 +81,8 @@ def S3Keys(bucket_name, prefix='/', delimiter='/', start_after=''):
             
 # Find common prefixes
 def S3Prefixes(bucket_name, delimeter='/'):
+    s3_client = boto3.client('s3')
+    s3_paginator = s3_client.get_paginator('list_objects_v2')
     for result in s3_paginator.paginate(Bucket=in_bucket_name, Delimiter=delimeter):
         for prefix in result.get('CommonPrefixes'):
             yield prefix.get('Prefix')
