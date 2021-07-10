@@ -32,7 +32,7 @@ build_dataset_procs = None
 models = None
 #models = ['E19']
 #models = ['308']
-models = ['E21']
+#models = ['E21']
 
 # Predict every machine, regardless of whether the serial is in the Auckland University list
 predict_all=False
