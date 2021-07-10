@@ -147,7 +147,7 @@ def process_pred(p):
      
     canonical_key = f"{canonical_orders_prefix}/{toner_indices[0]}.{p['Toner.Color']}"
     if canonical_key not in canonical_hist:
-        writeBytesToS3(f's3://{dispatch_bucket}/{canonical_key}', prettyXML(pred_serial))
+        writeBytesToS3(f's3://{dispatch_bucket}/{canonical_key}', prettyXML(order))
         # One-off to reduce chance of duplicate toner dispatch: skip if toner is already below probable threshold
         # I.e. assume toner has been sent and write notional canonical order
         if datestring==start_date and p['Toner.Percent']<initial_toner_min:
