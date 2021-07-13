@@ -8,6 +8,7 @@ import datetime as dt
 import re
 import time
 import xml
+import xml.dom
 import xml.etree.ElementTree as ET
 import pytz
 
