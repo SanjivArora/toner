@@ -9,6 +9,7 @@ import re
 import time
 import xml
 import xml.dom
+import xml.dom.minidom
 import xml.etree.ElementTree as ET
 import pytz
 
