@@ -40,9 +40,6 @@ models = None
 predict_all=False
 #predict_all=True
 
-# UofA
-primary_account=1747
-
 accounts=[
     64121, #Cashmere
     63094, #City Care
