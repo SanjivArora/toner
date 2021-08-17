@@ -28,6 +28,9 @@ from lib.names import colors_norm
 # Config
 ################################################################################
 
+# Testing mode - append '-test' to prefixes in S3
+testing = False
+
 # Set to limit the number of processes to use to build dataset. Default is the number of physical cores.
 build_dataset_procs = None
 
@@ -40,14 +43,19 @@ models = None
 predict_all=False
 #predict_all=True
 
-accounts=[
-    64121, #Cashmere
-    63094, #City Care
-    9014, #Ricoh head office
-    32343, #MOJ
-    36171, #Corrections
-    10138, #Visy Board
-]
+# Map accounts to start dates
+accounts={
+    # Initial trial
+    64121:"20210709", #Cashmere
+    63094:"20210709", #City Care
+    9014:"20210709", #Ricoh head office
+    # Expanded trial
+    32343:"20210818", #MOJ
+    36171:"20210818", #Corrections
+    10138:"20210818", #Visy Board
+}
+
+initial_toner_min = 15
 
 dispatch_bucket='ricoh-prediction-dispatch'
 # Canonical orders: flat <toner index>.<color>
@@ -61,8 +69,6 @@ predictive_serials_prefix = 'predictive-serials'
 threshold_days=14
 max_data_age=21
 
-start_date = "20210709"
-initial_toner_min = 15
 
 color_to_call_type = {
     'K': 'TBL',
@@ -70,6 +76,11 @@ color_to_call_type = {
     'M': 'TMA',
     'C': 'TCY',
 }
+
+if testing:
+    testing_suffix = '-test'
+else:
+    testing_suffix = ''
 
 ################################################################################
 # Functions
@@ -147,16 +158,16 @@ def process_pred(p):
     if p['Days.To.Zero.From.Today.Earliest.Expected']>threshold_days or p['DataAge']>max_data_age:
         return
      
-    canonical_key = f"{canonical_orders_prefix}/{toner_indices[0]}.{p['Toner.Color']}"
+    canonical_key = f"{canonical_orders_prefix}{testing_suffix}/{toner_indices[0]}.{p['Toner.Color']}"
     if canonical_key not in canonical_hist:
         writeBytesToS3(f's3://{dispatch_bucket}/{canonical_key}', prettyXML(order))
         # One-off to reduce chance of duplicate toner dispatch: skip if toner is already below probable threshold
         # I.e. assume toner has been sent and write notional canonical order
-        if datestring==start_date and p['Toner.Percent']<initial_toner_min:
-            print("Skipping order for {canonical_key} as under starting toner threshold")
+        if datestring==accounts.get(int(p.PrimaryAcc), "Not Found") and p['Toner.Percent']<initial_toner_min:
+            print(f"Skipping order for {canonical_key} as under starting toner threshold")
             return
         print(f'Writing order for {canonical_key}')
-        writeBytesToS3(f's3://{dispatch_bucket}/{orders_prefix}/{datestring}/{orderName(ts)}.xml', prettyXML(order))
+        writeBytesToS3(f's3://{dispatch_bucket}/{orders_prefix}{testing_suffix}/{datestring}/{orderName(ts)}.xml', prettyXML(order))
 
 ################################################################################
 # Commands
@@ -175,7 +186,7 @@ else:
     ser_df = pd.read_csv('s3://ricoh-prediction-misc/mif/current/customer.csv')
     # Types from CSV MIF data are unreliable, forcing string representation works for the purposes of this script
     ser_df.PrimaryAcc = ser_df.PrimaryAcc.astype('str')
-    sers = ser_df[ser_df.PrimaryAcc.isin([str(x) for x in accounts])]['SerialNo']
+    sers = ser_df[ser_df.PrimaryAcc.isin([str(x) for x in accounts.keys()])]['SerialNo']
 
 
 preds = makePredictions(res, sers)
@@ -195,7 +206,7 @@ tz = pytz.timezone('NZ')
 nz_now = dt.datetime.now(tz)
 datestring = nz_now.strftime('%Y%m%d')
 
-writeBytesToS3(f's3://{dispatch_bucket}/{predictive_serials_prefix}/{datestring}/PredictiveSerialNumbers.xml', prettyXML(pred_serial))
+writeBytesToS3(f's3://{dispatch_bucket}/{predictive_serials_prefix}{testing_suffix}/{datestring}/PredictiveSerialNumbers.xml', prettyXML(pred_serial))
 
 for i in range(len(preds)):
     try:
