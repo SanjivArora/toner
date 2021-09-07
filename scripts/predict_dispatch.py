@@ -53,6 +53,9 @@ accounts={
     32343:"20210818", #MOJ
     36171:"20210818", #Corrections
     10138:"20210818", #Visy Board
+    # Additional customers early September
+    66385:"20210908", #ARA
+    76545:"20210908", #Mangere College
 }
 
 initial_toner_min = 15
