@@ -56,6 +56,8 @@ accounts={
     # Additional customers early September
     66385:"20210908", #ARA
     76545:"20210908", #Mangere College
+    # Ditto October
+    78487:"20211007", #HCL/Fonterra
 }
 
 initial_toner_min = 15
