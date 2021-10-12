@@ -58,6 +58,7 @@ accounts={
     76545:"20210908", #Mangere College
     # Ditto October
     78487:"20211007", #HCL/Fonterra
+    77823:"20211013", #St Cuths
 }
 
 initial_toner_min = 15
