@@ -4,10 +4,10 @@ import traceback
 import time
 import gc
 
-from .names import *
-from .derived import *
-from .cloud import *
-from .common import timed
+from . names import *
+from . derived import *
+from . cloud import *
+from . common import timed
 
 
 def addFields(df, name_dict):
@@ -19,10 +19,15 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     # Ensure the alphanumerical model IDs are interpreted as strings
     p.Model = p.Model.astype('str')
     
-    toner = findFields(names, '.*Toner.Bottle.%s.Remaining.Toner.(?!previous).*', 'Toner.%s', allow_missing=allow_missing)
+    toner = findFields(names, '.*Toner.Bottle.%s.Remaining.Toner.(?!previous).*','Toner.%s', allow_missing=allow_missing)
     addFields(p, toner)
-    toner_names = list(toner.keys())
     
+    toner_bw =  findFields(names, '.*Toner.status.Percentage','Toner.K', allow_missing=allow_missing,colors=False) 
+
+    addFields(p,toner_bw)
+    toner.update(toner_bw)
+    toner_names = list(toner.keys())
+                                   
     toner_end = findFields(names, '.*Toner.Bottle.%s.End.SP7.*', 'Toner.End.Status.%s', allow_missing=allow_missing)
     addFields(p, toner_end)
 
@@ -72,7 +77,8 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     addFields(p, total_jobs)
     pages_names = list(total_jobs.keys())
 
-    used_bottles = findFields(names, '.*used.cartridge.Total.%s', 'Toner.Bottles.Total.%s', allow_missing=allow_missing)
+    used_bottles = findFields(names, ['.*used.cartridge.Total.%s', 
+                                      '.*Toner.Use.Count.%s'],'Toner.Bottles.Total.%s', allow_missing=allow_missing)
     addFields(p, used_bottles)
     used_bottles_names = list(used_bottles.keys())
     
@@ -86,7 +92,12 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
         take_first=True,
         allow_missing=allow_missing,
     )
+    
+    bw_dev_rotation= findFields(names, '.*Drive.Distance.Counter.Development.*','Developer.Rotation.K',allow_missing=allow_missing,colors=False)
+    
     addFields(p, dev_rotation)
+    addFields(p,bw_dev_rotation)
+    dev_rotation.update(bw_dev_rotation)
     dev_rotation_names = list(dev_rotation.keys())
 
     # Always allow missing for toner call threshold as this comes in mutually exclusive variants
@@ -117,7 +128,7 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
         print(dev_rotation)
         print("Total Pages:")
         print(total_pages)
-        print("Usaed Bottles:")
+        print("Used Bottles:")
         print(used_bottles)
         print("Dev unit rotations:")
         print(dev_rotation)
@@ -175,7 +186,7 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
     status("Normalizing field names")
     toner_names, cov_names, pages_names, used_bottles_names, dev_rotation_names, pcus_names = normalizeFields(p, show_fields, allow_missing)
     colors_matched = [c for c in colors_norm if f'Toner.{c}' in toner_names]
-
+    print(colors_matched)
     if require_color_match and not colors_matched:
         raise Exception(f"No colors matched for {s3_url}")
 
@@ -224,13 +235,13 @@ def processFile(s3_url, show_fields=False, keep_orig=False, allow_missing=False,
 
         status("Adding toner bottle indices")
         apply(indexToner)
-
-        status("Adding PCU indices")
-        apply(indexPCU)
+        if pcus_names:
+            status("Adding PCU indices")
+            apply(indexPCU)
             
         status("Adding final page count for current toner")
         apply(getTonerPages)
-
+        
         status("Deriving dev unit replacement dates")
         apply(deriveDevReplacements)
         apply(selectDevReplacementDate)
