@@ -22,10 +22,14 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
     toner = findFields(names, '.*Toner.Bottle.%s.Remaining.Toner.(?!previous).*','Toner.%s', allow_missing=allow_missing)
     addFields(p, toner)
     
-    toner_bw =  findFields(names, '.*Toner.status.Percentage','Toner.K', allow_missing=allow_missing,colors=False) 
+    try:
+        toner_bw =  findFields(names, '.*Toner.status.Percentage','Toner.K', allow_missing=allow_missing,colors=False) 
 
-    addFields(p,toner_bw)
-    toner.update(toner_bw)
+        addFields(p,toner_bw)
+        toner.update(toner_bw)
+    except:
+        pass
+
     toner_names = list(toner.keys())
                                    
     toner_end = findFields(names, '.*Toner.Bottle.%s.End.SP7.*', 'Toner.End.Status.%s', allow_missing=allow_missing)
@@ -92,12 +96,16 @@ def normalizeFields(p, show_fields=False, allow_missing=False):
         take_first=True,
         allow_missing=allow_missing,
     )
-    
-    bw_dev_rotation= findFields(names, '.*Drive.Distance.Counter.Development.*','Developer.Rotation.K',allow_missing=allow_missing,colors=False)
-    
     addFields(p, dev_rotation)
-    addFields(p,bw_dev_rotation)
-    dev_rotation.update(bw_dev_rotation)
+
+    try:
+        bw_dev_rotation= findFields(names, '.*Drive.Distance.Counter.Development.*','Developer.Rotation.K',allow_missing=allow_missing,colors=False)
+        
+        addFields(p,bw_dev_rotation)
+        dev_rotation.update(bw_dev_rotation)
+    except:
+        pass
+
     dev_rotation_names = list(dev_rotation.keys())
 
     # Always allow missing for toner call threshold as this comes in mutually exclusive variants
